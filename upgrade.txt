@@ -1,0 +1,298 @@
+EIS Grid and Database Upgrade to Oracle 23ai
+Database Detail:
+DB Name Current Version Node Name DB Nature
+GRID (RAC)
+UATIIBCDB
+23ai (19.24.0.0) eissiuat01, 
+eissiuat02, 
+eissiuat03
+EIS UAT 
+Target Version:
+Stack Version After Upgrade
+Grid 23.5.0.0
+Database 23.5.0.0
+One-Off Patches Installed :
+Patch number Description
+36273767 [TXN MGMT LOCAL] ORA-1578: oracle data block corrupted 
+on tempfile even after 35904282, 35733946
+Pre-Upgrade Activity :
+1) Install Oracle Software with Patch
+Sr. No. Steps Duration Status
+1 Install Oracle Grid 23.5.0.0 Software. Done
+2 Install Oracle Database 23.5.0.0 Software Done
+4 Apply One-Off Patches Done
+2) Oracle Grid Upgrade (19.24.0.0 to 23.5.0.0):
+Sr No Steps Duration Status
+1 Download Oracle 23ai Grid Software and transfer to Server
+mkdir /u01/app/23.0.0/grid/
+unzip software
+Done
+2 Run Cluvfy to verify upgrade precheck
+runcluvfy.sh stage -pre crsinst -upgrade -rolling -
+src_crshome /u01/app/19.0.0.0/grid -dest_crshome 
+/u01/app/23.0.0/grid -dest_version 23.5.0.0.0 -fixup -
+verbose
+Done
+3 Stop Database instance and start GRID upgrade 10 Min
+SQL> shut immediate
+Database closed.
+Database dismounted.
+ORACLE instance shut down.
+SQL>
+cd /u01/app/23.0.0/grid/
+./gridSetup.sh
+4 Follow GUI steps and fill all the information 30 Min
+5 Run rootupgrade.sh file from both node. (Run on one node 
+at a time)
+cd /u01/app/23.0.0/grid/
+./rootupgrade.sh
+60 Min
+6 Restart cluster on both node one by one
+crsctl stop crs -f
+crsctl start crs -wait
+10 Min
+7 Copy SQLNET.OR and TNSNAMES.ORA from 23ai Grid Home 
+to 23ai Grid Homes
+5 Min
+8 Verify ASM, LISTENER 
+crsctl stat res -t
+srvctl status SCAN
+asmcmd> lsdg
+5 M
+i
+n
+3) Oracle Database Upgrade (19.24.0.0 to 23.5.0.0):
+Sr No Steps Duration Status
+1 Create Directory to Capture log
+mkdir /home/oracle/upgrade/
+mkdir /home/oracle/upgrade/whileupgrade/
+Done
+2 Download and Transfer new Preupgrade Bundle Done
+3 Take Optimizer statistics
+EXEC DBMS_STATS.GATHER_DICTIONARY_STATS;
+EXECUTE DBMS_STATS.GATHER_FIXED_OBJECTS_STATS;
+4 Lock the stats
+exec 
+dbms_stats.lock_table_stats('SYS','WRH$_ACTIVE_SESSION_HI
+STORY');
+exec 
+dbms_stats.lock_table_stats('SYS','WRH$_FILESTATXS');
+exec 
+dbms_stats.lock_table_stats('SYS','WRH$_EVENT_HISTOGRAM')
+;
+exec dbms_stats.lock_table_stats('SYS','WRH$_LATCH');
+exec dbms_stats.lock_table_stats('SYS','WRH$_SQLSTAT');
+exec 
+dbms_stats.lock_table_stats('SYS','WRP$_REPORTS_DETAILS')
+;
+5 Change Sample % from 10 to 2
+select dbms_stats.get_param('estimate_percent') from 
+dual;
+exec dbms_stats.set_param('estimate_percent',2);
+select dbms_stats.get_param('estimate_percent') from 
+dual;
+6 Check for invalid components in database
+SELECT comp_name , version, status FROM dba_registry;
+Done
+7 Empty Recycle Bin
+purge dba_recyclebin;
+8 Disable tigger before uprade and enable once upgrade 
+complete
+select owner, TRIGGER_NAME from dba_trigers;
+alter trigger <trigger name> disable;
+9 Disable any scheduler job
+select OWNER,JOB_NAME from dba_scheduler_jobs;
+execute dbms_scheduler.disable ('<JOB_NAME>');
+10 Verify whether there are any INVALID objects owned by 
+SYS/SYSTEM
+select owner,object_type,count(1) from dba_objects where 
+status = 'INVALID' group by owner,object_type;
+Done
+11 Check the status of all materialized views (MV), and refresh 
+any materialized views that are not fresh.
+SELECT o.name FROM sys.obj$ o, sys.user$ u, sys.sum$ s 
+WHERE o.type# = 42 AND bitand(s.mflags, 8) =8; 
+12 To decrease the amount of downtime you must take 
+optimizer statistics:-
+EXEC DBMS_STATS.GATHER_DICTIONARY_STATS;
+EXECUTE DBMS_STATS.GATHER_FIXED_OBJECTS_STATS;
+13 Ensure no files are in Back up or recovery mode before 
+starting the upgrade
+SELECT * FROM v$backup WHERE status != 'NOT ACTIVE';
+14 SYSTEM & SYS default Tablespace
+SELECT username, default_tablespace FROM dba_users WHERE 
+username in ('SYS','SYSTEM');
+ALTER user SYS default tablespace SYSTEM;
+ALTER user SYSTEM default tablespace SYSTEM;
+Done
+15 Explicitly set RESOURCE_LIMIT to FALSE:-
+16 Remove EM Repository
+emctl stop dbconsole
+@$ORACLE_HOME/rdbms/admin/emremove.sql 
+17 Check TDE Status
+SELECT * FROM DBA_ENCRYPTED_COLUMNS;
+Done
+18 Dependencies on Network Utility Packages:-
+SELECT * FROM DBA_DEPENDENCIES WHERE referenced_name IN 
+('UTL_TCP','UTL_SMTP','UTL_MAIL','UTL_HTTP','UTL_INADDR',
+'DBMS_LDAP') AND owner NOT IN 
+('SYS','PUBLIC','ORDPLUGINS');
+19 Resolve Outstanding Distributed Transactions Before 
+Upgrading:-
+Select * from dba_2pc_pending;
+select local_tran_id FROM dba_2pc_pending;
+execute dbms_transaction.purge_lost_db_entry('');
+commit;
+20 Check MVIEW Status
+SELECT o.name FROM sys.obj$ o, sys.user$ u, sys.sum$ s 
+WHERE o.type# = 42 AND bitand(s.mflags, 8) =8;
+21 Take DBLINK Output
+SELECT 'CREATE '||DECODE(U.NAME,'PUBLIC','public 
+')||'DATABASE LINK '||CHR(10)
+||DECODE(U.NAME,'PUBLIC',Null, 'SYS','',U.NAME||'.')|| 
+L.NAME||chr(10)
+||'CONNECT TO ' || L.USERID || ' IDENTIFIED BY 
+"'||L.PASSWORD||'" USING
+'''||L.HOST||''''
+||chr(10)||';' TEXT
+FROM SYS.LINK$ L, SYS.USER$ U
+WHERE L.OWNER# = U.USER#;
+22 Note Down Location
+SELECT name FROM v$controlfile;
+SELECT file_name FROM dba_data_files;
+SELECT group#, member FROM v$logfile;
+23 Copy parameter files
+copy pfile ,password file ,listerner file,tnsname.ora 
+,sqlnet.ora file in 23ai home
+24
+Upgrade : -
+1) Precheck before upgrade:
+Sr. 
+No
+Steps Duration Status
+1 Create pfile and stop all instance. Start only one instance
+create pfile='/home/oracle/pfile_day.ora' from spfile;
+Defer all standby destination
+shut immediate
+cluster_database=FALSE
+job_queue_processes=0
+parallel_max_servers=100
+startup mount pfile='/home/oracle/pfile_day.ora' ;
+create spfile from pfile='/home/oracle/pfile_day.ora' ;
+shut immediate
+startup mount
+show parameter db_recovery
+alter system set db_recovery_file_dest_size=20g;
+alter system set db_recovery_file_dest='<location>’;
+alter database flashback on;
+alter database open;
+show parameter compa
+show parameter db_recovery
+archive log list
+2 Create Guarantee Restore Point
+create restore point Before_Upgrade guarantee flashback 
+database;
+3 Execute Preupgrade script from source home
+/u01/oracle/app/oracle/product/19.0.0/jdk/bin/java -jar 
+/u01/oracle/app/oracle/product/23.0.0/rdbms/admin/preupgrade.jar 
+FILE TEXT DIR <location>
+4 Execute preupgrade_fixup.sql file
+preupgrade_fixups.sql
+Upgrade Process :
+1
+Startup Database In Upgrade mode
+$ . oraenv
+SQL> startup upgrade;
+2
+Execute catupgrade
+cd /u01/oracle/app/oracle/product/23.0.0/perl/bin
+/u01/oracle/app/oracle/product/23.0.0/perl/bin /perl
+/u01/oracle/app/oracle/product/23.0.0/rdbms/admin/catctl.pl -n 
+32 
+/u01/oracle/app/oracle/product/23.0.0/rdbms/admin/catupgrd.sql
+3
+Check Database Status, Component and object status
+select COMP_ID,COMP_NAME,VERSION,STATUS from dba_registry;
+Select count(1),status from dba_objects group by status;
+@?/rdbms/admin/utlrp.sql
+Select count(1),status from dba_objects group by status;
+4
+Recreate Database Directory
+@$ORACLE_HOME/rdbms/admin/utldirsymlink.sql
+@$ORACLE_HOME/rdbms/admin/utlusts.sql TEXT
+5 Execute postupgrade_fixups.sql
+postupgrade_fixups.sql
+6 Upgrade Apex
+cd $NEW_ORACLE_HOME/apex/
+@apexins.sql SYSAUX SYSAUX TEMP /i/
+cd $NEW_ORACLE_HOME/
+delete OLD Apex USER like APEX_03... or APEX_04... or 
+APEX_05...
+6
+Timezone Upgrade:
+SQL> SELECT version FROM v$timezone_file;
+Run utltz_upg_check.sql :
+It detect the highest installed DST patch automatically and needs no 
+downtime, this can be executed on a live production database but it WILL 
+purge the dba_recyclebin.
+@$ORACLE_HOME/rdbms/admin/utltz_upg_check.sql
+Run utltz_upg_apply.sql
+@$ORACLE_HOME/rdbms/admin/utltz_upg_apply.sql
+Post Upgrade :-
+1
+Compile the invalid objects:-
+SQL>select count(1) from dba_objects where status='INVALID';
+SQL>select owner,object_name,object_type from dba_objects where 
+status='INVALID';
+SQL>@?/rdbms/admin/utlrp.sql
+SQL>select count(1) from dba_objects where status='INVALID';
+SQL>select owner,object_name,object_type from dba_objects where 
+status='INVALID';
+No. of invalid objects should be same as before database upgrade.
+If it is not same, you might me need to change diagnostic_dest parameter to some new 
+location 
+SQL> alter system set diagnostic_dest=’<new location>’;
+2
+Make cluster_database parameter = TRUE
+If you changed the CLUSTER_DATABASE parameter prior the upgrade set 
+it back to TRUE
+3
+Migrate your initialization parameter file to a server parameter file.
+Create a server parameter file with an initialization parameter file
+SQL> create spfile from pfile;
+4 Make entries in listener.ora and tnsnames.ora file of 23ai oracle home
+5
+Start database instances on all nodes
+SQL> startup
+Start all associated listeners on both nodes
+6 Gather dictionary statistics after the upgrade using the command:-
+EXECUTE DBMS_STATS.GATHER_DICTIONARY_STATS;
+7
+Gather statistics on fixed objects two weeks after the upgrade using 
+the command:-
+EXECUTE DBMS_STATS.GATHER_FIXED_OBJECTS_STATS;
+8
+Unlock the stats
+exec 
+dbms_stats.unlock_table_stats('SYS','WRH$_ACTIVE_SESSION_HISTORY');
+exec dbms_stats.unlock_table_stats('SYS','WRH$_FILESTATXS');
+exec dbms_stats.unlock_table_stats('SYS','WRH$_EVENT_HISTOGRAM');
+exec dbms_stats.unlock_table_stats('SYS','WRH$_LATCH');
+exec dbms_stats.unlock_table_stats('SYS','WRH$_SQLSTAT');
+exec dbms_stats.unlock_table_stats('SYS','WRP$_REPORTS_DETAILS');
+9 change sample % from 2 to 10
+select dbms_stats.get_param('estimate_percent') from dual;
+exec dbms_stats.set_param('estimate_percent',10);
+select dbms_stats.get_param('estimate_percent') from dual;
+10 Drop Restore point Post 2 hours of the downtime
+drop restore point Before_Upgrade;
+DB Upgrade Rollback Plan :
+1
+Startup Database In Mount mode
+$ . oraenv
+SQL> startup mount;
+2
+Rollback using Restore Point
+Rollback database to restore point.
+SQLPLUS> shut immediate
+Srvctl start database -d DB_NAM
