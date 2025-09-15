@@ -1,0 +1,1 @@
+awk -F '/' ' { disk_group = $1; file_name = $NF; split(file_name,arr,"."); tablspace_name = arr[1]; count[disk_group]++; disk_group tablespaces[disk_group][tablspace_name]++; } END {for (disk in count){print "disk group: " disk ",Total files: " count[disk];    for (tbs in tablespaces[disk]) {print "tablespace: " tbs ",files: " tablespaces[disk][tbs];}}}' tablespace.txt
