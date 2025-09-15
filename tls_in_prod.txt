@@ -1,0 +1,135 @@
+Steps	Commands
+"Step 1) 
+create wallet to configure TLS "	"Make Directory to create wallet
+
+mkdir -p /u01/app/grid/admin/wallet
+
+orapki wallet create -wallet <wallet location> -auto_login -pwd <password>
+
+E.g: orapki wallet create -wallet /u01/app/grid/admin/wallet -pwd Password#1 -auto_login
+
+Note:- 1) this wallet to be created under GRID HOME  "
+"Step 2) 
+Modify listeners"	"1) verify Endpoints
+
+crsctl stat res -p |grep ENDPOINTS
+
+2)Add New port fot TLS
+
+srvctl modify listener -p ""TCP:1787/TCPS:1789""
+
+3)Take Listner Restart 
+
+srvctl stop listener 
+srvctl start listener
+
+4)Adding  TCPS endpoints to scan listeners
+
+ srvctl stop scan_listener
+ 
+ srvctl modify scan_listener -p TCP:1786/TCPS:1788
+ 
+ srvctl start scan_listener
+ 
+5) verify that endpoint have been added in scan listener 
+
+crsctl stat res -p |grep ENDPOINTS"
+"STEP 3)
+Modify local_listener and remote_listener"	"1) take backup of previous entries 
+
+set lines 300 pages 300
+
+col name for a30
+col value for a150
+
+select inst_id,name,value from gv$parameter where name='local_listener' order by 1;
+select inst_id,name,value from gv$parameter where name='remote_listener' order by 1;
+
+2)Add new Entry in local listener
+
+a) Node 1 i.e MIBPRCDB1
+
+Alter system set local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=10.191.170.107)(PORT=1787)),(ADDRESS=(PROTOCOL=TCPS)(HOST=10.191.170.107)(PORT=1789))' SID='MIBPRCDB1' SCOPE=BOTH;
+
+b) Node 2 i.e MIBPRCDB2
+
+Alter system set local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=10.191.170.107)(PORT=1787)),(ADDRESS=(PROTOCOL=TCPS)(HOST=10.191.170.108)(PORT=1789))' SID='MIBPRCDB2' SCOPE=BOTH;
+
+c) Node 2 i.e MIBPRCDB3
+
+Alter system set local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=10.191.170.107)(PORT=1787)),(ADDRESS=(PROTOCOL=TCPS)(HOST=10.191.170.109)(PORT=1789))' SID='MIBPRCDB3' SCOPE=BOTH;
+
+d) Node 2 i.e MIBPRCDB4
+
+Alter system set local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=10.191.170.107)(PORT=1787)),(ADDRESS=(PROTOCOL=TCPS)(HOST=10.191.170.110)(PORT=1789))' SID='MIBPRCDB4' SCOPE=BOTH;
+
+e) Node 2 i.e MIBPRCDB5
+
+Alter system set local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=10.191.170.107)(PORT=1787)),(ADDRESS=(PROTOCOL=TCPS)(HOST=10.191.170.111)(PORT=1789))' SID='MIBPRCDB5' SCOPE=BOTH;
+
+f) Node 2 i.e MIBPRCDB6
+
+Alter system set local_listener='(ADDRESS=(PROTOCOL=TCP)(HOST=10.191.170.107)(PORT=1787)),(ADDRESS=(PROTOCOL=TCPS)(HOST=10.191.170.112)(PORT=1789))' SID='MIBPRCDB6' SCOPE=BOTH;
+
+
+
+3)Add new Entry in remote_listener
+
+Alter system set remote_listener='eissipr-scan1:1786,eissipr-scan1:1788' SID='MIBPRCDB6' SCOPE=BOTH;"
+"Step 4)
+
+Define wallet locations in listener.ora and sqlnet.ora"	"Note:- This changes to be done in grid Home 
+Note:- Add these entry in listener.ora & sqlnet.ora  in each node 
+
+a) SQLNET.ORA
+
+1) Take backup of sqlnet.ora and listner.ora
+
+cp sqlnet.ora sqlnet_bkp_13062025
+cp listener.ora listener_bkp_13062025
+
+
+2) Add below entry in sqlnet.ora
+
+
+cat  $ORACLE_HOME/network/admin/sqlnet.ora 
+
+SQLNET.AUTHENTICATION_SERVICES= (BEQ, TCPS)
+
+SSL_CLIENT_AUTHENTICATION = FALSE
+
+WALLET_LOCATION =
+  (SOURCE =
+    (METHOD = FILE)
+    (METHOD_DATA =
+      (DIRECTORY = /u01/app/grid/admin/wallet)
+    )
+  )
+
+
+b)listener.ora
+
+1) Add below entry in listener.ora
+
+SL_CLIENT_AUTHENTICATION = FALSE
+
+WALLET_LOCATION =
+  (SOURCE =
+    (METHOD = FILE)
+    (METHOD_DATA =
+      (DIRECTORY = /u01/app/grid/admin/wallet)
+    )
+  )"
+"Step 5)
+Testing connection"	"Add below entry in TNSNAMES.ORA
+DBSSL =
+  (DESCRIPTION =
+    (ADDRESS = (PROTOCOL = TCPS)(HOST = eissipr-scan1:1788 )(PORT =1788))
+    (CONNECT_DATA =
+      (SERVER = DEDICATED)
+      (SERVICE_NAME = <service name>)
+    )
+  )
+
+
+sqlnet sys@DBSSL as sysdba"
