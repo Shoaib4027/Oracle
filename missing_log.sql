@@ -10,20 +10,26 @@ END {
     for (t in list) {
         n = asorti(list[t], seqs);
         prev = seqs[1];
-        start_gap = 0;
+
+        printf("Thread %s: ", t);
+
+        sep = "";
 
         for (i=2; i<=n; i++) {
             curr = seqs[i];
 
             if (curr > prev + 1) {
-                if (start_gap == 0) start_gap = prev + 1;
-                end_gap = curr - 1;
+                start = prev + 1;
+                end   = curr - 1;
+                count = end - start + 1;
 
-                printf("Thread %s: Missing %d-%d\n", t, start_gap, end_gap);
+                printf("%sMissing %d-%d (%d)", sep, start, end, count);
+                sep=", ";
             }
 
-            start_gap = 0;
             prev = curr;
         }
+
+        print "";
     }
 }'
