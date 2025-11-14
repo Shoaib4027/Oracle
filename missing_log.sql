@@ -1,24 +1,18 @@
-WITH foreign_logs AS (
-    SELECT THREAD#, SEQUENCE#
-    FROM V$FOREIGN_ARCHIVED_LOG
-    WHERE APPLIED='NO'
-),
-registered_logs AS (
-    SELECT THREAD#, SEQUENCE#
-    FROM DBA_REGISTERED_ARCHIVED_LOG
-),
-missing AS (
-    SELECT f.thread#, f.sequence#
-    FROM foreign_logs f
-    LEFT JOIN registered_logs r
-      ON f.thread# = r.thread# AND f.sequence# = r.sequence#
-    WHERE r.sequence# IS NULL
-)
 SELECT 
+    consumer_name,
+    name,
     thread#,
-    MIN(sequence#) AS gap_start,
-    MAX(sequence#) AS gap_end,
-    COUNT(*) AS gap_count
-FROM missing
-GROUP BY thread#
-ORDER BY thread#;
+    sequence#,
+    (sequence# - LAG(sequence#) OVER (PARTITION BY thread# ORDER BY sequence#)) AS diff,
+    CASE 
+        WHEN (sequence# - LAG(sequence#) OVER (PARTITION BY thread# ORDER BY sequence#)) > 1 
+        THEN 'MISSING: ' || (LAG(sequence#) OVER (PARTITION BY thread# ORDER BY sequence#) + 1) 
+             || ' TO ' || (sequence# - 1)
+    END AS missing_range
+FROM 
+    dba_registered_archived_log
+WHERE 
+    consumer_name = 'MIQ4'
+    AND thread# = 1
+ORDER BY 
+    sequence#;
