@@ -8,21 +8,21 @@ awk -F'[_ .]' '
 
 END {
     for (t in list) {
-        print "Thread:", t;
-
-        # gather sorted sequence numbers
         n = asorti(list[t], seqs);
-
         prev = seqs[1];
+        start_gap = 0;
 
         for (i=2; i<=n; i++) {
             curr = seqs[i];
 
             if (curr > prev + 1) {
-                for (m = prev+1; m < curr; m++) {
-                    print "  Missing:", m;
-                }
+                if (start_gap == 0) start_gap = prev + 1;
+                end_gap = curr - 1;
+
+                printf("Thread %s: Missing %d-%d\n", t, start_gap, end_gap);
             }
+
+            start_gap = 0;
             prev = curr;
         }
     }
