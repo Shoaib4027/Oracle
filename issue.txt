@@ -29,3 +29,7 @@ SELECT owner, segment_name, segment_type, partition_name,
 FROM dba_extents
 WHERE file_id = &FILE_ID
   AND &BLOCK# BETWEEN block_id AND block_id + blocks - 1;
+
+
+STORAGE(INITIAL 8388608 NEXT 1048576 MINEXTENTS 1 MAXEXTENTS 2147483645
+  PCTINCREASE 0 FREELISTS 1 FREELIST GROUPS 1
