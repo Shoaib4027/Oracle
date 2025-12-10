@@ -1,0 +1,31 @@
+SELECT file_id
+FROM dba_data_files
+WHERE ts# = &TS#
+  AND &BLOCK# BETWEEN (SELECT SUM(blocks) OVER (ORDER BY file_id 
+                          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+                       - blocks
+                       FROM dba_data_files
+                       WHERE ts# = &TS#
+                       ORDER BY file_id)
+      AND (SELECT SUM(blocks) OVER (ORDER BY file_id 
+                          ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW)
+            FROM dba_data_files
+            WHERE ts# = &TS#
+            ORDER BY file_id);
+
+
+
+SELECT file_id
+FROM dba_extents
+WHERE tablespace_name =
+        (SELECT tablespace_name FROM dba_tablespaces WHERE ts# = &TS#)
+  AND &BLOCK# BETWEEN block_id AND block_id + blocks - 1;
+
+
+
+
+SELECT owner, segment_name, segment_type, partition_name,
+       block_id, blocks, file_id
+FROM dba_extents
+WHERE file_id = &FILE_ID
+  AND &BLOCK# BETWEEN block_id AND block_id + blocks - 1;
