@@ -9,6 +9,8 @@ WITH lvl0 AS (
 ),
 lvl1 AS (
     SELECT 
+        bs.set_stamp,
+        bs.set_count,
         bs.completion_time,
         bd.file#,
         bd.incremental_change#,
@@ -23,14 +25,18 @@ lvl1 AS (
     WHERE bs.incremental_level = 1
 )
 SELECT 
-    completion_time,
-    file#,
-    checkpoint_change#,
-    incremental_change#,
+    l1.completion_time,
+    l1.file#,
+    bp.handle AS backup_piece_name,
+    l1.checkpoint_change#,
+    l1.incremental_change#,
     CASE 
-        WHEN incremental_change# = lvl0_chk 
+        WHEN l1.incremental_change# = l1.lvl0_chk 
         THEN 'CUMULATIVE'
         ELSE 'DIFFERENTIAL'
     END AS detected_type
-FROM lvl1
-ORDER BY completion_time DESC;
+FROM lvl1 l1
+JOIN v$backup_piece bp
+  ON l1.set_stamp = bp.set_stamp
+ AND l1.set_count = bp.set_count
+ORDER BY l1.completion_time DESC;
