@@ -1,0 +1,9 @@
+SELECT api_name,
+       ROUND(SUM(
+           NVL(LENGTH(input_data),0) +
+           NVL(LENGTH(output_data),0)
+       )/1024/1024/1024,2) AS size_gb,
+       COUNT(*) rows_cnt
+FROM eisapp.backend_details PARTITION (P_202502)
+GROUP BY api_name
+ORDER BY size_gb DESC;
