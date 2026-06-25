@@ -35,3 +35,25 @@ WHERE c.conftype='PHYSICALDISKS'
 SELECT *
 FROM pd
 FETCH FIRST 20 ROWS ONLY;
+
+
+
+
+SELECT *
+FROM (
+  SELECT x.*
+  FROM v$cell_config c,
+       XMLTABLE(
+         '/cli-output/physicaldisk'
+         PASSING XMLTYPE(c.confval)
+         COLUMNS
+           name VARCHAR2(200) PATH 'name',
+           status VARCHAR2(100) PATH 'status',
+           disktype VARCHAR2(100) PATH 'diskType',
+           slotnumber VARCHAR2(100) PATH 'slotNumber',
+           physicalserial VARCHAR2(200) PATH 'physicalSerial',
+           key500 VARCHAR2(200) PATH 'key_500'
+       ) x
+  WHERE c.conftype='PHYSICALDISKS'
+)
+FETCH FIRST 20 ROWS ONLY;
