@@ -24,11 +24,11 @@ AS
     FROM dba_tab_subpartitions tsp,
          dba_segments sg,
          owner_ o
-    WHERE tsp.table_owner      = o.owner
-      AND sg.owner             = tsp.table_owner
-      AND sg.segment_name      = tsp.table_name
-      AND sg.partition_name   = tsp.subpartition_name
-      AND sg.segment_type     = 'TABLE SUBPARTITION'
+    WHERE tsp.table_owner    = o.owner
+      AND sg.owner           = tsp.table_owner
+      AND sg.segment_name    = tsp.table_name
+      AND sg.partition_name  = tsp.subpartition_name
+      AND sg.segment_type    = 'TABLE SUBPARTITION'
     GROUP BY
         tsp.table_owner,
         tsp.table_name,
@@ -49,40 +49,70 @@ AS
          dba_lob_subpartitions lsp,
          dba_segments sg,
          owner_ ow
-    WHERE tsp.table_owner             = ow.owner
-      AND lsp.table_owner             = tsp.table_owner
-      AND lsp.table_name              = tsp.table_name
-      AND lsp.subpartition_name       = tsp.subpartition_name
-      AND sg.owner                    = lsp.table_owner
-      AND sg.segment_name             = lsp.lob_name
-      AND sg.partition_name           = lsp.lob_subpartition_name
-      AND sg.segment_type             = 'LOB SUBPARTITION'
+    WHERE tsp.table_owner       = ow.owner
+      AND lsp.table_owner       = tsp.table_owner
+      AND lsp.table_name        = tsp.table_name
+      AND lsp.subpartition_name = tsp.subpartition_name
+      AND sg.owner              = lsp.table_owner
+      AND sg.segment_name       = lsp.lob_name
+      AND sg.partition_name     = lsp.lob_subpartition_name
+      AND sg.segment_type       = 'LOB SUBPARTITION'
     GROUP BY
         tsp.table_owner,
         tsp.table_name,
         tsp.partition_name,
         tsp.subpartition_name
+),
+
+result_
+AS
+(
+    SELECT
+        ps.table_owner,
+        ps.table_name,
+        ps.partition_name,
+        ps.subpartition_name,
+        ROUND(ps.part_size_mb,2) part_size_mb,
+        ROUND(NVL(pls.part_lob_size_mb,0),2) part_lob_size_mb,
+        ROUND(
+            ps.part_size_mb + NVL(pls.part_lob_size_mb,0),
+            2
+        ) all_part_size_mb
+    FROM ps,
+         pls
+    WHERE pls.table_owner(+)       = ps.table_owner
+      AND pls.table_name(+)        = ps.table_name
+      AND pls.partition_name(+)    = ps.partition_name
+      AND pls.subpartition_name(+) = ps.subpartition_name
+      AND ps.table_name            = '&tab_name'
+      AND ps.partition_name        = '&part_name'
 )
 
 SELECT
-    ps.table_owner,
-    ps.table_name,
-    ps.partition_name,
-    ps.subpartition_name,
-    ROUND(ps.part_size_mb,2) part_size_mb,
-    ROUND(NVL(pls.part_lob_size_mb,0),2) part_lob_size_mb,
-    ROUND(
-        ps.part_size_mb + NVL(pls.part_lob_size_mb,0),
-        2
-    ) all_part_size_mb
-FROM ps,
-     pls
-WHERE pls.table_owner(+)       = ps.table_owner
-  AND pls.table_name(+)        = ps.table_name
-  AND pls.partition_name(+)    = ps.partition_name
-  AND pls.subpartition_name(+) = ps.subpartition_name
-  AND ps.table_name            = '&tab_name'
-  AND ps.partition_name        = '&part_name'
+    table_owner,
+    table_name,
+    partition_name,
+    subpartition_name,
+    part_size_mb,
+    part_lob_size_mb,
+    all_part_size_mb
+FROM result_
+
+UNION ALL
+
+SELECT
+    MAX(table_owner)       AS table_owner,
+    MAX(table_name)        AS table_name,
+    MAX(partition_name)    AS partition_name,
+    '*** TOTAL ***'        AS subpartition_name,
+    ROUND(SUM(part_size_mb),2)       AS part_size_mb,
+    ROUND(SUM(part_lob_size_mb),2)   AS part_lob_size_mb,
+    ROUND(SUM(all_part_size_mb),2)   AS all_part_size_mb
+FROM result_
+
 ORDER BY
-    ps.partition_name,
-    ps.subpartition_name;
+    CASE
+        WHEN subpartition_name = '*** TOTAL ***' THEN 2
+        ELSE 1
+    END,
+    subpartition_name;
