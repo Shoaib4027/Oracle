@@ -3,6 +3,7 @@ COL TABLE_OWNER       FOR A30
 COL PARTITION_NAME    FOR A30
 COL SUBPARTITION_NAME FOR A30
 
+
 WITH
 owner_
 AS
@@ -11,9 +12,6 @@ AS
     FROM dual
 ),
 
-/* ============================================================
-   TABLE SUBPARTITION SIZE
-   ============================================================ */
 ps
 AS
 (
@@ -26,11 +24,11 @@ AS
     FROM dba_tab_subpartitions tsp,
          dba_segments sg,
          owner_ o
-    WHERE tsp.table_owner       = o.owner
-      AND sg.owner              = tsp.table_owner
-      AND sg.segment_name       = tsp.table_name
-      AND sg.partition_name     = tsp.partition_name
-      AND sg.subpartition_name  = tsp.subpartition_name
+    WHERE tsp.table_owner      = o.owner
+      AND sg.owner             = tsp.table_owner
+      AND sg.segment_name      = tsp.table_name
+      AND sg.partition_name   = tsp.subpartition_name
+      AND sg.segment_type     = 'TABLE SUBPARTITION'
     GROUP BY
         tsp.table_owner,
         tsp.table_name,
@@ -38,9 +36,6 @@ AS
         tsp.subpartition_name
 ),
 
-/* ============================================================
-   LOB SUBPARTITION SIZE
-   ============================================================ */
 pls
 AS
 (
@@ -54,15 +49,14 @@ AS
          dba_lob_subpartitions lsp,
          dba_segments sg,
          owner_ ow
-    WHERE tsp.table_owner       = ow.owner
-      AND lsp.table_owner       = tsp.table_owner
-      AND lsp.table_name        = tsp.table_name
-      AND lsp.parent_table_partition = tsp.partition_name
-      AND lsp.parent_table_subpartition = tsp.subpartition_name
-      AND sg.owner              = lsp.table_owner
-      AND sg.segment_name       = lsp.lob_name
-      AND sg.partition_name     = lsp.partition_name
-      AND sg.subpartition_name  = lsp.subpartition_name
+    WHERE tsp.table_owner             = ow.owner
+      AND lsp.table_owner             = tsp.table_owner
+      AND lsp.table_name              = tsp.table_name
+      AND lsp.subpartition_name       = tsp.subpartition_name
+      AND sg.owner                    = lsp.table_owner
+      AND sg.segment_name             = lsp.lob_name
+      AND sg.partition_name           = lsp.lob_subpartition_name
+      AND sg.segment_type             = 'LOB SUBPARTITION'
     GROUP BY
         tsp.table_owner,
         tsp.table_name,
