@@ -13,3 +13,14 @@ AND END_POINT_URL='https://cmp.sbi.bank.in/eis/updateOrder' and source_id='NB')
 group by urn, INPUT_DATA, OUTPUT_DATA, creation_date_time;
 commit;
 spool off;
+
+
+select /*+parallel(32)*/ COUNT(1) from iibarch.backend_log_26q4 PARTITION(OCT_26) where
+request_date_time between to_date('12-OCT-2026 00:00:00','DD-MON-YYYY HH24:MI:SS')
+and to_date('13-OCT-2026 23:59:59','DD-MON-YYYY HH24:MI:SS')
+  4  AND END_POINT_URL='https://cmp.sbi.bank.in/eis/updateOrder' and source_id='NB'
+  5  /
+
+  COUNT(1)
+----------
+     47130
