@@ -1,26 +1,6 @@
-set echo on;
-set define off;
-set time on timing on;
-spool /tmp/vsr_batch1.txt;
-insert into "IIBARCH"."BACKEND_DETAILS_TMP_DATA" SELECT /*+parallel(04)*/ urn,INPUT_DATA,OUTPUT_DATA,creation_date_time FROM IIBARCH.backend_details_26q4 PARTITION(OCT_26)
-WHERE creation_date_time between to_date('12-OCT-202600:00:00','DD-MON-YYYY HH24:MI:SS')
-and to_date('13-OCT-2026 23:59:59','DD-MON-YYYY HH24:MI:SS')
-and URN IN
-(select  URN from iibarch.backend_log_26q4 PARTITION(OCT_26) where
-request_date_time between to_date('12-OCT-2026 00:00:00','DD-MON-YYYY HH24:MI:SS')
-and to_date('13-OCT-2026 23:59:59','DD-MON-YYYY HH24:MI:SS')
-AND END_POINT_URL='https://cmp.sbi.bank.in/eis/updateOrder' and source_id='NB')
-group by urn, INPUT_DATA, OUTPUT_DATA, creation_date_time;
-commit;
-spool off;
-
-
-select /*+parallel(32)*/ COUNT(1) from iibarch.backend_log_26q4 PARTITION(OCT_26) where
-request_date_time between to_date('12-OCT-2026 00:00:00','DD-MON-YYYY HH24:MI:SS')
-and to_date('13-OCT-2026 23:59:59','DD-MON-YYYY HH24:MI:SS')
-  4  AND END_POINT_URL='https://cmp.sbi.bank.in/eis/updateOrder' and source_id='NB'
-  5  /
-
-  COUNT(1)
-----------
-     47130
+  awk '/^20[0-9][0-9]-/{ts=substr($0,1,16)}
+  /^ORA-04031: unable/{n=split($0,a,"\""); c[ts" |
+  "a[6]" | "a[8]]++}
+  END{for(k in c) print k" | "c[k]}' \
+  /u01/app/oracle/diag/rdbms/hibdrcdb/HIBDRCDB1/trace/
+  alert_HIBDRCDB1.log | sort
