@@ -71,3 +71,34 @@ SELECT name, total_mb, free_mb, usable_file_mb FROM v$asm_diskgroup;
 -- Oracle never shrinks datafiles automatically, even with autoextend off.
 -- If in ARCHIVELOG mode, check the FRA: SELECT * FROM v$recovery_file_dest;
 --   and run in RMAN: DELETE OBSOLETE;
+
+-- =============================================================
+-- 5. Generate statements for many datafiles (large databases)
+-- Run inside the PDB. Review the spooled files before running them.
+-- Do drops in batches in a quiet window; check v$asm_diskgroup between batches.
+-- dba_extents can be very slow on huge databases; if so, use dba_free_space
+-- and treat a file as empty when free bytes are within a few MB of its size.
+-- =============================================================
+
+-- 5A. Drop statements for datafiles that hold no extents
+SET PAGESIZE 0 LINESIZE 300 FEEDBACK OFF
+SPOOL drop_empty_datafiles.sql
+SELECT 'ALTER TABLESPACE '||d.tablespace_name||
+       ' DROP DATAFILE '''||d.file_name||''';'
+FROM   dba_data_files d
+WHERE  d.tablespace_name NOT IN ('SYSTEM','SYSAUX')
+AND    d.tablespace_name NOT LIKE 'UNDO%'
+AND    d.file_id <> (SELECT MIN(x.file_id) FROM dba_data_files x
+                     WHERE x.tablespace_name = d.tablespace_name)
+AND    NOT EXISTS (SELECT 1 FROM dba_extents e WHERE e.file_id = d.file_id);
+SPOOL OFF
+
+-- 5B. Resize statements for non-empty files (down to highest used block)
+SPOOL resize_datafiles.sql
+SELECT 'ALTER DATABASE DATAFILE '''||a.file_name||''' RESIZE '||
+       (CEIL(NVL(b.hwm,1)*(SELECT value FROM v$parameter WHERE name='db_block_size')/1024/1024)+1)||'M;'
+FROM   dba_data_files a
+JOIN  (SELECT file_id, MAX(block_id+blocks-1) hwm FROM dba_extents GROUP BY file_id) b
+  ON   a.file_id = b.file_id
+WHERE  a.bytes/1024/1024 > CEIL(b.hwm*8192/1024/1024)+1024;   -- only if it frees >1 GB (8192 = block size)
+SPOOL OFF
