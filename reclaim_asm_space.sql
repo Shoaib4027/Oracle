@@ -102,3 +102,45 @@ JOIN  (SELECT file_id, MAX(block_id+blocks-1) hwm FROM dba_extents GROUP BY file
   ON   a.file_id = b.file_id
 WHERE  a.bytes/1024/1024 > CEIL(b.hwm*8192/1024/1024)+1024;   -- only if it frees >1 GB (8192 = block size)
 SPOOL OFF
+
+-- =============================================================
+-- 6. Find which segments sit at the highest used block (block the shrink)
+-- dba_extents is slow on huge databases: filter by tablespace, one at a time.
+-- Replace 8192 with your block size. Do not move undo segments (TYPE2 UNDO);
+-- handle undo by switching to a new undo tablespace.
+-- After moving/shrinking a blocking segment, rerun section 2 and resize.
+-- =============================================================
+
+-- 6A. Last extents of one file (first row = segment holding the highest used block)
+SELECT owner, segment_name, partition_name, segment_type,
+       block_id, blocks,
+       ROUND(blocks*8192/1024/1024) extent_mb
+FROM   dba_extents
+WHERE  file_id = <file_id>
+ORDER  BY block_id DESC
+FETCH FIRST 10 ROWS ONLY;
+
+-- 6B. Blocking segment for every file in a tablespace
+SELECT file_id, owner, segment_name, partition_name, segment_type,
+       block_id + blocks - 1 AS hwm_block
+FROM  (SELECT e.*,
+              ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY block_id DESC) rn
+       FROM   dba_extents e
+       WHERE  tablespace_name = '<TABLESPACE>')
+WHERE  rn = 1
+ORDER  BY file_id;
+
+-- 6C. Segments blocking the most files (move these first)
+SELECT owner, segment_name, segment_type, COUNT(*) files_blocked
+FROM  (SELECT e.*,
+              ROW_NUMBER() OVER (PARTITION BY file_id ORDER BY block_id DESC) rn
+       FROM   dba_extents e
+       WHERE  tablespace_name = '<TABLESPACE>')
+WHERE  rn = 1
+GROUP  BY owner, segment_name, segment_type
+ORDER  BY files_blocked DESC;
+
+-- Fixes by segment type:
+--   table : ALTER TABLE owner.t MOVE ONLINE TABLESPACE new_ts;
+--   index : ALTER INDEX owner.i REBUILD ONLINE TABLESPACE new_ts;
+--   LOB   : ALTER TABLE owner.t MOVE LOB(col) STORE AS (TABLESPACE new_ts);
