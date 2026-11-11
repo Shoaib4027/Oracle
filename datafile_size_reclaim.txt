@@ -1098,3 +1098,73 @@ IIB_ARCH_TBS                   AUTO         8192
 IIB_ARCH_TBS_NEW               AUTO         8192
 IIB_ARCH_TBS_NEW1              AUTO         8192
 
+-------------------------------Feature usage---------------------------
+-----------------------------------------------------------------------
+SQL> select name,detected_usages ,currently_used ,last_usage_date from dba_feature_usage_statistics where name like '%Compression%' or name like '%SecureFile%';
+
+NAME                                                                                                                             DETECTED_USAGES CURRE LAST_USAG
+-------------------------------------------------------------------------------------------------------------------------------- --------------- ----- ---------
+Backup ZLIB Compression                                                                                                                        0 FALSE
+Backup ZLIB Compression                                                                                                                        0 FALSE
+Backup ZLIB Compression                                                                                                                        0 FALSE
+Backup BZIP2 Compression                                                                                                                       0 FALSE
+Backup BZIP2 Compression                                                                                                                       0 FALSE
+Backup BZIP2 Compression                                                                                                                       0 FALSE
+Backup BASIC Compression                                                                                                                       0 FALSE
+Backup BASIC Compression                                                                                                                       7 FALSE 01-NOV-20
+Backup BASIC Compression                                                                                                                       0 FALSE
+Backup LOW Compression                                                                                                                         0 FALSE
+Backup LOW Compression                                                                                                                         0 FALSE
+Backup LOW Compression                                                                                                                         0 FALSE
+Backup MEDIUM Compression                                                                                                                      0 FALSE
+Backup MEDIUM Compression                                                                                                                      0 FALSE
+Backup MEDIUM Compression                                                                                                                      0 FALSE
+Backup HIGH Compression                                                                                                                        0 FALSE
+Backup HIGH Compression                                                                                                                        0 FALSE
+Backup HIGH Compression                                                                                                                        0 FALSE
+Oracle Advanced Network Compression Service                                                                                                    0 FALSE
+Oracle Advanced Network Compression Service                                                                                                    0 FALSE
+Oracle Advanced Network Compression Service                                                                                                    0 FALSE
+Hybrid Columnar Compression Conventional Load                                                                                                  0 FALSE
+Hybrid Columnar Compression Conventional Load                                                                                                  2 FALSE 03-AUG-25
+Compression Advisor                                                                                                                            0 FALSE
+Compression Advisor                                                                                                                            0 FALSE
+Compression Advisor                                                                                                                            0 FALSE
+SecureFiles (user)                                                                                                                            97 TRUE  27-APR-24
+SecureFiles (user)                                                                                                                           316 TRUE  19-JUN-22
+SecureFiles (user)                                                                                                                           131 TRUE  08-NOV-26
+SecureFiles (system)                                                                                                                          97 TRUE  27-APR-24
+SecureFiles (system)                                                                                                                         316 TRUE  19-JUN-22
+SecureFiles (system)                                                                                                                         131 TRUE  08-NOV-26
+SecureFile Encryption (user)                                                                                                                   0 FALSE
+SecureFile Encryption (user)                                                                                                                   0 FALSE
+SecureFile Encryption (user)                                                                                                                   0 FALSE
+SecureFile Encryption (system)                                                                                                                 0 FALSE
+SecureFile Encryption (system)                                                                                                                 0 FALSE
+SecureFile Encryption (system)                                                                                                                 0 FALSE
+SecureFile Compression (user)                                                                                                                 97 TRUE  27-APR-24
+SecureFile Compression (user)                                                                                                                311 TRUE  19-JUN-22
+SecureFile Compression (user)                                                                                                                131 TRUE  08-NOV-26
+SecureFile Compression (system)                                                                                                                0 FALSE
+SecureFile Compression (system)                                                                                                                0 FALSE
+SecureFile Compression (system)                                                                                                                0 FALSE
+SecureFile Deduplication (user)                                                                                                               97 TRUE  27-APR-24
+SecureFile Deduplication (user)                                                                                                               61 TRUE  19-JUN-22
+SecureFile Deduplication (user)                                                                                                              131 TRUE  08-NOV-26
+SecureFile Deduplication (system)                                                                                                              0 FALSE
+SecureFile Deduplication (system)                                                                                                              0 FALSE
+SecureFile Deduplication (system)                                                                                                              0 FALSE
+HeapCompression                                                                                                                              147 TRUE  19-JUN-22
+HeapCompression                                                                                                                               97 TRUE  27-APR-24
+HeapCompression                                                                                                                              131 TRUE  08-NOV-26
+Advanced Index Compression                                                                                                                     7 TRUE  19-JUN-22
+Advanced Index Compression                                                                                                                     0 FALSE
+Advanced Index Compression                                                                                                                     0 FALSE
+Hybrid Columnar Compression                                                                                                                   63 TRUE  19-JUN-22
+Hybrid Columnar Compression                                                                                                                   97 TRUE  27-APR-24
+Hybrid Columnar Compression                                                                                                                  131 TRUE  08-NOV-26
+Hybrid Columnar Compression Row Level Locking                                                                                                  0 FALSE
+Hybrid Columnar Compression Row Level Locking                                                                                                  0 FALSE
+Hybrid Columnar Compression Row Level Locking                                                                                                  0 FALSE
+
+62 rows selected.
