@@ -258,6 +258,7 @@ SELECT 'ALTER TABLE '||l.table_owner||'.'||l.table_name||' MOVE PARTITION '||
 FROM   dba_lob_partitions l
 WHERE  l.table_owner = 'IIBARCH'
 AND    l.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    l.table_name NOT LIKE 'BIN$%'   -- skip recycle bin objects
 AND    NOT EXISTS (SELECT 1 FROM dba_tab_partitions p
                    WHERE  p.table_owner = l.table_owner AND p.table_name = l.table_name
                    AND    p.partition_name = l.partition_name
@@ -343,3 +344,77 @@ END;
 -- LOB-only move with compression:
 --   ALTER TABLE owner.t MOVE PARTITION p
 --     LOB (col) STORE AS SECUREFILE (TABLESPACE &dest COMPRESS MEDIUM);
+
+-- =============================================================
+-- 10. Findings from section 9 output
+--  * Table partitions already HCC (QUERY HIGH) or ADVANCED: keep that setting.
+--  * Nearly all LOBs are SecureFile but NOT compressed (HCC does not cover LOBs).
+--  * API_PROCESS_CLOBDET_2022_1 (159 GB) has no table compression.
+--  * NEW1 holds many BIN$ (recycle bin) partitions from 2020 tables: check and
+--    purge them instead of moving them.
+-- No ONLINE below: HCC + online move is not assumed to work; archive data is idle.
+-- Test on a small partition first (e.g. API_DETAILS_CLOB_2023C JAN_23, 2 GB).
+-- =============================================================
+
+-- 10A. Recycle bin objects in NEW1 (confirm they are not needed, then purge)
+SELECT owner, original_name, type, COUNT(*) objs,
+       ROUND(SUM(space)*8192/1024/1024/1024) gb
+FROM   dba_recyclebin
+WHERE  ts_name = 'IIB_ARCH_TBS_NEW1'
+GROUP  BY owner, original_name, type
+ORDER  BY gb DESC;
+
+SELECT ROUND(SUM(bytes)/1024/1024/1024) bin_gb
+FROM   dba_segments
+WHERE  tablespace_name = 'IIB_ARCH_TBS_NEW1' AND segment_name LIKE 'BIN$%';
+-- PURGE TABLESPACE IIB_ARCH_TBS_NEW1;      -- irreversible; removes flashback ability
+
+-- 10B. Partition moves keeping each table partition's compression, LOBs compressed
+DEFINE dest=IIB_ARCH_TBS
+SPOOL move_partitions_compress.sql
+SELECT 'ALTER TABLE '||p.table_owner||'.'||p.table_name||
+       ' MOVE PARTITION '||p.partition_name||' TABLESPACE &dest'||
+       CASE WHEN p.compression = 'ENABLED' THEN
+              CASE WHEN p.compress_for IN ('BASIC','ADVANCED')
+                   THEN ' ROW STORE COMPRESS '||p.compress_for
+                   ELSE ' COMPRESS FOR '||p.compress_for END
+       END||
+       NVL((SELECT ' '||LISTAGG('LOB ('||l.column_name||
+                   ') STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH)',' ')
+                   WITHIN GROUP (ORDER BY l.column_name)
+            FROM   dba_lob_partitions l
+            WHERE  l.table_owner = p.table_owner AND l.table_name = p.table_name
+            AND    l.partition_name = p.partition_name),'')||
+       ' UPDATE INDEXES PARALLEL 4;' AS stmt
+FROM   dba_tab_partitions p
+WHERE  p.table_owner = 'IIBARCH'
+AND    p.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    p.table_name IN ('BACKEND_PROCESSING_LOG_2022C','ORCH_API_DETAILS_2023_2C',
+       'API_DETAILS_23C','API_LOG_2023_2C','BACKEND_PROCESSING_LOG_2023_2C',
+       'API_DETAILS_23_2C','BACKEND_DETAILS_CLOB_23_2C','API_DETAILS_CLOB_2023C')
+ORDER  BY p.table_name, p.partition_position;
+SPOOL OFF
+
+-- 10C. LOB-only partitions, compressed (replaces 8A when compressing)
+SPOOL move_lob_only_compress.sql
+SELECT 'ALTER TABLE '||l.table_owner||'.'||l.table_name||' MOVE PARTITION '||
+       l.partition_name||' LOB ('||l.column_name||
+       ') STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH);'
+FROM   dba_lob_partitions l
+WHERE  l.table_owner = 'IIBARCH'
+AND    l.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    l.table_name NOT LIKE 'BIN$%'
+AND    NOT EXISTS (SELECT 1 FROM dba_tab_partitions p
+                   WHERE  p.table_owner = l.table_owner AND p.table_name = l.table_name
+                   AND    p.partition_name = l.partition_name
+                   AND    p.tablespace_name = 'IIB_ARCH_TBS_NEW1')
+ORDER  BY l.table_name, l.partition_name, l.column_name;
+SPOOL OFF
+
+-- 10D. Non-partitioned API_PROCESS_CLOBDET_2022_1: add HCC + LOB compression
+-- (check the ratio with 9D first; its LOBs are in-row, small LOBs are not compressed)
+ALTER TABLE IIBARCH.API_PROCESS_CLOBDET_2022_1 MOVE TABLESPACE &dest COMPRESS FOR QUERY HIGH
+  LOB (REQUEST)   STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH)
+  LOB (RESPONSE)  STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH)
+  LOB (EXCEPTION) STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH)
+  UPDATE INDEXES PARALLEL 4;
