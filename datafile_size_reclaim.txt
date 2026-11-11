@@ -916,3 +916,185 @@ IIBARCH                        API_DETAILS_23_2C              INPUT_DATA        
 IIBARCH                        ORCH_API_DETAILS_2023_2C       EXCEPTION_DESC                 SYS_LOB0001030079C00004$$
 IIBARCH                        ORCH_API_DETAILS_2023_2C       INPUT_DATA                     SYS_LOB0001030079C00005$$
 IIBARCH                        ORCH_API_DETAILS_2023_2C       OUTPUT_DATA                    SYS_LOB0001030079C00006$$
+
+
+--------------------------------------------------------------------------------------------------------------------
+---------------------------------------9------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------------------
+SQL> SELECT table_name, partition_name, compression, compress_for
+FROM   dba_tab_partitions
+WHERE  table_owner = 'IIBARCH' AND tablespace_name = 'IIB_ARCH_TBS_NEW1'
+ORDER  BY table_name, partition_position;
+
+SELECT table_name, compression, compress_for
+FROM   dba_tables
+WHERE  owner = 'IIBARCH'
+AND    table_name IN ('API_PROCESS_CLOBDET_2022_1','EVC_UNIQUE_REQUEST_ID_ARC2');  2    3    4
+TABLE_NAME                     PARTITION_NAME                 COMPRESS COMPRESS_FOR
+------------------------------ ------------------------------ -------- ------------------------------
+API_DETAILS_23C                JAN_23                         ENABLED  QUERY HIGH
+API_DETAILS_23C                FEB_23                         ENABLED  QUERY HIGH
+API_DETAILS_23_2C              JUL_23                         ENABLED  QUERY HIGH
+API_DETAILS_24_1C              MAR_24                         ENABLED  QUERY HIGH
+API_DETAILS_CLOB_2023C         JAN_23                         ENABLED  ADVANCED
+API_LOG_2022C                  AUG_22                         ENABLED  QUERY HIGH
+API_LOG_2023_2C                JUN_23                         ENABLED  QUERY HIGH
+API_PROCESS_DET_2022C          SEP_22                         ENABLED  QUERY HIGH
+API_PROCESS_DET_2024_1C        JAN_24                         ENABLED  QUERY HIGH
+API_PROCESS_DET_2024_1C        FEB_24                         ENABLED  QUERY HIGH
+BACKEND_DETAILS_CLOB_23_2C     JUN_23                         ENABLED  ADVANCED
+BACKEND_PROCESSING_LOG_2022C   AUG_22                         ENABLED  QUERY HIGH
+BACKEND_PROCESSING_LOG_2022C   SEP_22                         ENABLED  QUERY HIGH
+BACKEND_PROCESSING_LOG_2022C   OCT_22                         ENABLED  QUERY HIGH
+BACKEND_PROCESSING_LOG_2023_2C JUN_23                         ENABLED  QUERY HIGH
+BACKEND_PROCESS_DET_2022C      SYS_P84233                     ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 JUN_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 JUL_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 AUG_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 SEP_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 OCT_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 NOV_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 DEC_2020                       ENABLED  QUERY HIGH
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 JUN_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 JUL_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 AUG_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 SEP_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 OCT_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 NOV_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 DEC_2020                       DISABLED
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 SYS_P26680                     DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 JUN_2020                       DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 JUL_2020                       DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 AUG_2020                       DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 SEP_2020                       DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 OCT_2020                       DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 NOV_2020                       DISABLED
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 DEC_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 JUN_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 JUL_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 AUG_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 SEP_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 OCT_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 NOV_2020                       DISABLED
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 DEC_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 JUN_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 JUL_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 AUG_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 SEP_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 OCT_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 NOV_2020                       DISABLED
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 DEC_2020                       DISABLED
+BIN$XnD6uJU8KsrgY2kAsAoYHw==$0 JAN_2021                       DISABLED
+ORCH_API_DETAILS_2023_2C       JUL_23                         ENABLED  QUERY HIGH
+ORCH_API_DETAILS_2024_1C       JAN_24                         ENABLED  QUERY HIGH
+ORCH_API_DETAILS_2024_1C       FEB_24                         ENABLED  QUERY HIGH
+ORCH_API_DETAILS_CLOB_24_1C    JAN_24                         ENABLED  ADVANCED
+ORCH_API_DETAILS_CLOB_24_1C    FEB_24                         ENABLED  ADVANCED
+ORCH_API_LOG_24_1C             MAR_24                         ENABLED  QUERY HIGH
+
+59 rows selected.
+
+SQL> SQL>   2    3    4
+
+TABLE_NAME                     COMPRESS COMPRESS_FOR
+------------------------------ -------- ------------------------------
+API_PROCESS_CLOBDET_2022_1     DISABLED
+EVC_UNIQUE_REQUEST_ID_ARC2     DISABLED
+
+SQL>
+SQL> SELECT table_name, column_name, securefile, compression, deduplication,
+       COUNT(*) lob_partitions
+FROM   dba_lob_partitions
+WHERE  table_owner = 'IIBARCH' AND tablespace_name = 'IIB_ARCH_TBS_NEW1'
+GROUP  BY table_name, column_name, securefile  2  , compression, deduplication
+ORDER  BY table_name, column_name;
+
+SELECT table_name, column_name, securefile, compression, deduplication, in_row
+FROM   dba_lobs
+WHERE  owner = 'IIBARCH' AND table_name = 'API_PROCESS_CLOBDET_2022_1';  3    4    5    6
+TABLE_NAME                     COLUMN_NAME                    SEC COMPRE DEDUPLICATION   LOB_PARTITIONS
+------------------------------ ------------------------------ --- ------ --------------- --------------
+API_DETAILS_23C                EXCEPTION_DESC                 YES NO     NO                           2
+API_DETAILS_23C                INPUT_DATA                     YES NO     NO                           2
+API_DETAILS_23C                OUTPUT_DATA                    YES NO     NO                           2
+API_DETAILS_23_2C              EXCEPTION_DESC                 YES NO     NO                           1
+API_DETAILS_23_2C              INPUT_DATA                     YES NO     NO                           1
+API_DETAILS_23_2C              OUTPUT_DATA                    YES NO     NO                           1
+API_DETAILS_24_1C              EXCEPTION_DESC                 YES NO     NO                           1
+API_DETAILS_24_1C              INPUT_DATA                     YES NO     NO                           1
+API_DETAILS_24_1C              OUTPUT_DATA                    YES NO     NO                           1
+API_DETAILS_CLOB_2023C         DB_APPLICATION_NAME            YES NO     NO                           1
+API_DETAILS_CLOB_2023C         EXCEPTION_DESC                 YES NO     NO                           1
+API_DETAILS_CLOB_2023C         INPUT_DATA                     YES HIGH   NO                           1
+API_DETAILS_CLOB_2023C         INPUT_DATA                     YES NO     NO                           1
+API_DETAILS_CLOB_2023C         OUTPUT_DATA                    YES HIGH   NO                           1
+API_DETAILS_CLOB_2023C         OUTPUT_DATA                    YES NO     NO                           1
+API_LOG_2022C                  ACTUAL_ERROR                   YES NO     NO                           1
+API_LOG_2022C                  ERROR_DESCRIPTION              YES NO     NO                           1
+API_LOG_2023_2C                ACTUAL_ERROR                   YES NO     NO                           1
+API_LOG_2023_2C                ERROR_DESCRIPTION              YES NO     NO                           1
+API_PROCESS_DET_2022C          EXCEPTION                      YES NO     NO                           1
+API_PROCESS_DET_2022C          REQUEST                        YES NO     NO                           1
+API_PROCESS_DET_2022C          RESPONSE                       YES NO     NO                           1
+API_PROCESS_DET_2024_1C        EXCEPTION_DESCRIPTION          YES NO     NO                           2
+API_PROCESS_DET_2024_1C        REQUEST                        YES NO     NO                           2
+API_PROCESS_DET_2024_1C        RESPONSE                       YES NO     NO                           2
+BACKEND_DETAILS_CLOB_23_2C     EXCEPTION_DESC                 YES NO     NO                           1
+BACKEND_DETAILS_CLOB_23_2C     INPUT_DATA                     YES NO     NO                           1
+BACKEND_DETAILS_CLOB_23_2C     OUTPUT_DATA                    YES NO     NO                           1
+BACKEND_PROCESS_DET_2022C      EXCEPTION_FROM_BACKEND         YES NO     NO                           1
+BACKEND_PROCESS_DET_2022C      REQUEST_SENT                   YES NO     NO                           1
+BACKEND_PROCESS_DET_2022C      RESPONSE_RECEIVED              YES NO     NO                           1
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 EXCEPTION_DESC                 YES NO     NO                           7
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 INPUT_DATA                     YES NO     NO                           7
+BIN$XnD6uJS/KsrgY2kAsAoYHw==$0 OUTPUT_DATA                    YES NO     NO                           7
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 EXCEPTION_DESC                 YES NO     NO                           8
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 INPUT_DATA                     YES NO     NO                           8
+BIN$XnD6uJT2KsrgY2kAsAoYHw==$0 OUTPUT_DATA                    YES NO     NO                           8
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 EXCEPTION_DESC                 YES NO     NO                           7
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 INPUT_DATA                     YES NO     NO                           8
+BIN$XnD6uJT4KsrgY2kAsAoYHw==$0 OUTPUT_DATA                    YES NO     NO                           8
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 EXCEPTION_DESC                 YES NO     NO                           7
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 INPUT_DATA                     YES NO     NO                           7
+BIN$XnD6uJTaKsrgY2kAsAoYHw==$0 OUTPUT_DATA                    YES NO     NO                           7
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 EXCEPTION_DESC                 YES NO     NO                           7
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 INPUT_DATA                     YES NO     NO                           7
+BIN$XnD6uJTcKsrgY2kAsAoYHw==$0 OUTPUT_DATA                    YES NO     NO                           7
+BIN$XnD6uJU8KsrgY2kAsAoYHw==$0 EXCEPTION_FROM_BACKEND         YES NO     NO                           1
+BIN$XnD6uJU8KsrgY2kAsAoYHw==$0 REQUEST_SENT                   YES NO     NO                           1
+BIN$XnD6uJU8KsrgY2kAsAoYHw==$0 RESPONSE_RECEIVED              YES NO     NO                           1
+ORCH_API_DETAILS_2023_2C       DB_APPLICATION_NAME            YES NO     NO                           1
+ORCH_API_DETAILS_2023_2C       EXCEPTION_DESC                 YES NO     NO                           1
+ORCH_API_DETAILS_2023_2C       INPUT_DATA                     YES NO     NO                           1
+ORCH_API_DETAILS_2023_2C       OUTPUT_DATA                    YES NO     NO                           1
+ORCH_API_DETAILS_2024_1C       DB_APPLICATION_NAME            YES NO     NO                           2
+ORCH_API_DETAILS_2024_1C       EXCEPTION_DESC                 YES NO     NO                           2
+ORCH_API_DETAILS_2024_1C       INPUT_DATA                     YES NO     NO                           2
+ORCH_API_DETAILS_2024_1C       OUTPUT_DATA                    YES NO     NO                           2
+ORCH_API_DETAILS_CLOB_24_1C    DB_APPLICATION_NAME            YES NO     NO                           2
+ORCH_API_DETAILS_CLOB_24_1C    EXCEPTION_DESC                 YES NO     NO                           2
+ORCH_API_DETAILS_CLOB_24_1C    INPUT_DATA                     YES HIGH   NO                           2
+ORCH_API_DETAILS_CLOB_24_1C    OUTPUT_DATA                    YES HIGH   NO                           2
+ORCH_API_LOG_24_1C             ERROR_DESCRIPTION              YES NO     NO                           1
+
+62 rows selected.
+
+SQL> SQL>   2    3
+
+TABLE_NAME                     COLUMN_NAME                    SEC COMPRE DEDUPLICATION   IN_
+------------------------------ ------------------------------ --- ------ --------------- ---
+API_PROCESS_CLOBDET_2022_1     RESPONSE                       YES NO     NO              YES
+API_PROCESS_CLOBDET_2022_1     EXCEPTION                      YES NO     NO              YES
+API_PROCESS_CLOBDET_2022_1     REQUEST                        YES NO     NO              YES
+
+SQL>
+SQL> SELECT tablespace_name, segment_space_management, block_size
+FROM   dba_tablespaces
+WHERE  tablespace_name IN ('IIB_ARCH_TBS','IIB_ARCH_TBS_NEW','IIB_ARCH_TBS_NEW1');  2    3
+
+TABLESPACE_NAME                SEGMEN BLOCK_SIZE
+------------------------------ ------ ----------
+IIB_ARCH_TBS                   AUTO         8192
+IIB_ARCH_TBS_NEW               AUTO         8192
+IIB_ARCH_TBS_NEW1              AUTO         8192
+
