@@ -186,7 +186,10 @@ SELECT 'ALTER TABLE '||p.table_owner||'.'||p.table_name||
                         WITHIN GROUP (ORDER BY l.column_name)
             FROM   dba_lob_partitions l
             WHERE  l.table_owner = p.table_owner AND l.table_name = p.table_name
-            AND    l.partition_name = p.partition_name),'')||
+            AND    l.partition_name = p.partition_name
+            AND    NOT EXISTS (SELECT 1 FROM dba_tab_columns c WHERE c.owner = l.table_owner AND c.table_name = l.table_name
+                                   AND c.column_name = l.column_name AND c.data_type IN ('VARCHAR2','NVARCHAR2','RAW')
+                                   AND c.data_length > 4000)),'')||
        ' UPDATE INDEXES PARALLEL 4 ONLINE;' AS stmt
 FROM   dba_tab_partitions p
 WHERE  p.table_owner = 'IIBARCH'
@@ -215,7 +218,10 @@ SPOOL move_tables.sql
 SELECT 'ALTER TABLE '||t.owner||'.'||t.table_name||' MOVE ONLINE TABLESPACE &dest'||
        NVL((SELECT ' '||LISTAGG('LOB ('||l.column_name||') STORE AS (TABLESPACE &dest)',' ')
                         WITHIN GROUP (ORDER BY l.column_name)
-            FROM dba_lobs l WHERE l.owner = t.owner AND l.table_name = t.table_name),'')||
+            FROM dba_lobs l WHERE l.owner = t.owner AND l.table_name = t.table_name
+            AND    NOT EXISTS (SELECT 1 FROM dba_tab_columns c WHERE c.owner = l.owner AND c.table_name = l.table_name
+                                   AND c.column_name = l.column_name AND c.data_type IN ('VARCHAR2','NVARCHAR2','RAW')
+                                   AND c.data_length > 4000)),'')||
        ' PARALLEL 4;'
 FROM   dba_tables t
 WHERE  t.tablespace_name = 'IIB_ARCH_TBS_NEW1'
@@ -258,7 +264,10 @@ SELECT 'ALTER TABLE '||l.table_owner||'.'||l.table_name||' MOVE PARTITION '||
 FROM   dba_lob_partitions l
 WHERE  l.table_owner = 'IIBARCH'
 AND    l.tablespace_name = 'IIB_ARCH_TBS_NEW1'
-AND    l.table_name NOT LIKE 'BIN$%'   -- skip recycle bin objects
+AND    l.table_name NOT LIKE 'BIN$%'
+AND    NOT EXISTS (SELECT 1 FROM dba_tab_columns c WHERE c.owner = l.table_owner AND c.table_name = l.table_name
+                       AND c.column_name = l.column_name AND c.data_type IN ('VARCHAR2','NVARCHAR2','RAW')
+                       AND c.data_length > 4000)   -- skip recycle bin objects
 AND    NOT EXISTS (SELECT 1 FROM dba_tab_partitions p
                    WHERE  p.table_owner = l.table_owner AND p.table_name = l.table_name
                    AND    p.partition_name = l.partition_name
@@ -384,7 +393,10 @@ SELECT 'ALTER TABLE '||p.table_owner||'.'||p.table_name||
                    WITHIN GROUP (ORDER BY l.column_name)
             FROM   dba_lob_partitions l
             WHERE  l.table_owner = p.table_owner AND l.table_name = p.table_name
-            AND    l.partition_name = p.partition_name),'')||
+            AND    l.partition_name = p.partition_name
+            AND    NOT EXISTS (SELECT 1 FROM dba_tab_columns c WHERE c.owner = l.table_owner AND c.table_name = l.table_name
+                                   AND c.column_name = l.column_name AND c.data_type IN ('VARCHAR2','NVARCHAR2','RAW')
+                                   AND c.data_length > 4000)),'')||
        ' UPDATE INDEXES PARALLEL 4;' AS stmt
 FROM   dba_tab_partitions p
 WHERE  p.table_owner = 'IIBARCH'
@@ -404,6 +416,9 @@ FROM   dba_lob_partitions l
 WHERE  l.table_owner = 'IIBARCH'
 AND    l.tablespace_name = 'IIB_ARCH_TBS_NEW1'
 AND    l.table_name NOT LIKE 'BIN$%'
+AND    NOT EXISTS (SELECT 1 FROM dba_tab_columns c WHERE c.owner = l.table_owner AND c.table_name = l.table_name
+                       AND c.column_name = l.column_name AND c.data_type IN ('VARCHAR2','NVARCHAR2','RAW')
+                       AND c.data_length > 4000)
 AND    NOT EXISTS (SELECT 1 FROM dba_tab_partitions p
                    WHERE  p.table_owner = l.table_owner AND p.table_name = l.table_name
                    AND    p.partition_name = l.partition_name
@@ -418,3 +433,22 @@ ALTER TABLE IIBARCH.API_PROCESS_CLOBDET_2022_1 MOVE TABLESPACE &dest COMPRESS FO
   LOB (RESPONSE)  STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH)
   LOB (EXCEPTION) STORE AS SECUREFILE (TABLESPACE &dest COMPRESS HIGH)
   UPDATE INDEXES PARALLEL 4;
+
+-- =============================================================
+-- 11. Extended data types (MAX_STRING_SIZE=EXTENDED): ORA-14692
+-- VARCHAR2(32767) columns are stored in hidden SecureFile LOBs. They appear in
+-- dba_lobs/dba_lob_partitions but STORE AS is NOT allowed for them, so the
+-- generators above now skip them. List them:
+-- =============================================================
+SELECT owner, table_name, column_name, data_type, data_length
+FROM   dba_tab_columns
+WHERE  owner = 'IIBARCH' AND data_type IN ('VARCHAR2','NVARCHAR2','RAW') AND data_length > 4000
+ORDER  BY table_name, column_name;
+
+-- After moving a partition, confirm the hidden LOB segments followed the table
+-- (if any still show IIB_ARCH_TBS_NEW1 they will keep blocking the datafiles):
+SELECT column_name, lob_partition_name, tablespace_name, compression
+FROM   dba_lob_partitions
+WHERE  table_owner = 'IIBARCH' AND table_name = 'API_DETAILS_CLOB_2023C'
+AND    partition_name = 'JAN_23'
+ORDER  BY column_name;
