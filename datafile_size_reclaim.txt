@@ -847,6 +847,72 @@ IIBARCH                        SYS_LOB0001205976C00006$$      LOB PARTITION     
 IIBARCH                        API_DETAILS_24_1C              TABLE PARTITION                1
 
 37 rows selected.
+-------------------------------------------------------------------------------------------------------
+-----------------------------------------7A--------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+SQL> SELECT owner, segment_name, partition_name, segment_type,
+       ROUND(SUM(bytes)/1024/1024/1024) gb
+FROM   dba_segments
+WHERE  tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    owner = 'IIBARCH'
+AND   (segment_name IN ('BACKEND_PROCESSING_LOG_2022C'  2  ,'API_PROCESS_CLOBDET_2022_1',
+                        'ORCH_API_DETAILS_2023_2C','API_DETAILS_23C','API_LOG_2023_2C',
+                        'BACKEND_PROCESSING_LOG_2023_2C','API_DETAILS_23_2C',
+                        'BACKEND_DETAILS_CLOB_23_2C','  3  API_DETAILS_CLOB_2023C')
+    OR   segment_name LIKE 'SYS_LOB00010299%' OR segment_name LIKE 'SYS_LOB00010300%'
+    OR   segment_name LIKE 'SYS_LOB00009277%' OR segment_name LIKE 'SYS_LOB00009337%')
+GROUP  BY owner, segment_name, partition_name, segment  4  _type
+ORDER  BY gb DESC;  5    6    7    8    9   10   11   12   13
+
+OWNER                          SEGMENT_NAME                   PARTITION_NAME                 SEGMENT_TYPE               GB
+------------------------------ ------------------------------ ------------------------------ ------------------ ----------
+IIBARCH                        SYS_LOB0001029983C00004$$      SYS_LOB_P55801                 LOB PARTITION             857
+IIBARCH                        SYS_LOB0001030079C00006$$      SYS_LOB_P56037                 LOB PARTITION             612
+IIBARCH                        ORCH_API_DETAILS_2023_2C       JUL_23                         TABLE PARTITION           582
+IIBARCH                        API_DETAILS_23_2C              JUL_23                         TABLE PARTITION           394
+IIBARCH                        SYS_LOB0001030040C00006$$      SYS_LOB_P56022                 LOB PARTITION             390
+IIBARCH                        API_DETAILS_23C                FEB_23                         TABLE PARTITION           221
+IIBARCH                        API_DETAILS_23C                JAN_23                         TABLE PARTITION           217
+IIBARCH                        SYS_LOB0000933731C00006$$      SYS_LOB_P54376                 LOB PARTITION             173
+IIBARCH                        API_PROCESS_CLOBDET_2022_1                                    TABLE                     159
+IIBARCH                        API_LOG_2023_2C                JUN_23                         TABLE PARTITION           151
+IIBARCH                        SYS_LOB0001029983C00005$$      SYS_LOB_P55803                 LOB PARTITION             103
+IIBARCH                        SYS_LOB0000933731C00006$$      SYS_LOB_P52851                 LOB PARTITION              73
+IIBARCH                        BACKEND_PROCESSING_LOG_2022C   OCT_22                         TABLE PARTITION            49
+IIBARCH                        BACKEND_PROCESSING_LOG_2022C   AUG_22                         TABLE PARTITION            44
+IIBARCH                        BACKEND_PROCESSING_LOG_2022C   SEP_22                         TABLE PARTITION            44
+IIBARCH                        BACKEND_PROCESSING_LOG_2023_2C JUN_23                         TABLE PARTITION            40
+IIBARCH                        SYS_LOB0000933731C00005$$      SYS_LOB_P54374                 LOB PARTITION              25
+IIBARCH                        SYS_LOB0000933731C00005$$      SYS_LOB_P52849                 LOB PARTITION              24
+IIBARCH                        SYS_LOB0001030040C00005$$      SYS_LOB_P56020                 LOB PARTITION              20
+IIBARCH                        SYS_LOB0001030079C00005$$      SYS_LOB_P56035                 LOB PARTITION              14
+IIBARCH                        BACKEND_DETAILS_CLOB_23_2C     JUN_23                         TABLE PARTITION             4
+IIBARCH                        SYS_LOB0001029983C00003$$      SYS_LOB_P55799                 LOB PARTITION               3
+IIBARCH                        API_DETAILS_CLOB_2023C         JAN_23                         TABLE PARTITION             2
+IIBARCH                        SYS_LOB0001030040C00004$$      SYS_LOB_P56018                 LOB PARTITION               2
+IIBARCH                        SYS_LOB0001030079C00004$$      SYS_LOB_P56033                 LOB PARTITION               1
+IIBARCH                        SYS_LOB0000933731C00007$$      SYS_LOB_P52853                 LOB PARTITION               0
+IIBARCH                        SYS_LOB0001030079C00007$$      SYS_LOB_P56039                 LOB PARTITION               0
+IIBARCH                        SYS_LOB0000933731C00004$$      SYS_LOB_P52847                 LOB PARTITION               0
+IIBARCH                        SYS_LOB0001030030C00028$$      SYS_LOB_P55301                 LOB PARTITION               0
+IIBARCH                        SYS_LOB0001030030C00010$$      SYS_LOB_P55299                 LOB PARTITION               0
 
 
 
+--------------------------------------------------------------------------------------------------
+----------------------------------------7C-----------------------------------------------------------
+--------------------------------------------------------------------------------------------------
+
+
+OWNER                          TABLE_NAME                     COLUMN_NAME                    SEGMENT_NAME
+------------------------------ ------------------------------ ------------------------------ ------------------------------
+IIBARCH                        API_DETAILS_23C                INPUT_DATA                     SYS_LOB0000927654C00005$$
+IIBARCH                        API_DETAILS_23C                OUTPUT_DATA                    SYS_LOB0000927654C00006$$
+IIBARCH                        API_DETAILS_CLOB_2023C         OUTPUT_DATA                    SYS_LOB0000933731C00006$$
+IIBARCH                        BACKEND_DETAILS_CLOB_23_2C     EXCEPTION_DESC                 SYS_LOB0001029983C00003$$
+IIBARCH                        BACKEND_DETAILS_CLOB_23_2C     OUTPUT_DATA                    SYS_LOB0001029983C00004$$
+IIBARCH                        API_DETAILS_23_2C              EXCEPTION_DESC                 SYS_LOB0001030040C00004$$
+IIBARCH                        API_DETAILS_23_2C              INPUT_DATA                     SYS_LOB0001030040C00005$$
+IIBARCH                        ORCH_API_DETAILS_2023_2C       EXCEPTION_DESC                 SYS_LOB0001030079C00004$$
+IIBARCH                        ORCH_API_DETAILS_2023_2C       INPUT_DATA                     SYS_LOB0001030079C00005$$
+IIBARCH                        ORCH_API_DETAILS_2023_2C       OUTPUT_DATA                    SYS_LOB0001030079C00006$$
