@@ -279,3 +279,67 @@ JOIN   dba_segments s ON s.owner = i.owner AND s.segment_name = i.index_name
 WHERE  s.tablespace_name = 'IIB_ARCH_TBS_NEW1'
 GROUP  BY i.owner, i.index_name, i.table_name, s.segment_type
 ORDER  BY gb DESC;
+
+-- =============================================================
+-- 9. Is the data already compressed? Can we compress while moving?
+-- Run 9A-9C and send the output. 9D estimates savings on one small partition.
+-- LICENSE: BASIC table compression is included in Enterprise Edition.
+--   ROW STORE COMPRESS ADVANCED and SecureFile LOB compression/dedup
+--   need the Advanced Compression Option.
+-- =============================================================
+
+-- 9A. Table compression status
+SELECT table_name, partition_name, compression, compress_for
+FROM   dba_tab_partitions
+WHERE  table_owner = 'IIBARCH' AND tablespace_name = 'IIB_ARCH_TBS_NEW1'
+ORDER  BY table_name, partition_position;
+
+SELECT table_name, compression, compress_for
+FROM   dba_tables
+WHERE  owner = 'IIBARCH'
+AND    table_name IN ('API_PROCESS_CLOBDET_2022_1','EVC_UNIQUE_REQUEST_ID_ARC2');
+
+-- 9B. LOB partitions: BasicFile or SecureFile, compressed or not
+SELECT table_name, column_name, securefile, compression, deduplication,
+       COUNT(*) lob_partitions
+FROM   dba_lob_partitions
+WHERE  table_owner = 'IIBARCH' AND tablespace_name = 'IIB_ARCH_TBS_NEW1'
+GROUP  BY table_name, column_name, securefile, compression, deduplication
+ORDER  BY table_name, column_name;
+
+SELECT table_name, column_name, securefile, compression, deduplication, in_row
+FROM   dba_lobs
+WHERE  owner = 'IIBARCH' AND table_name = 'API_PROCESS_CLOBDET_2022_1';
+
+-- 9C. Destination must be ASSM for SecureFile LOBs
+SELECT tablespace_name, segment_space_management, block_size
+FROM   dba_tablespaces
+WHERE  tablespace_name IN ('IIB_ARCH_TBS','IIB_ARCH_TBS_NEW','IIB_ARCH_TBS_NEW1');
+
+-- 9D. Estimate savings on one small partition (needs a scratch tablespace, e.g. USERS)
+SET SERVEROUTPUT ON
+DECLARE
+  l_blk_cmp PLS_INTEGER; l_blk_uncmp PLS_INTEGER; l_rows_cmp PLS_INTEGER;
+  l_rows_uncmp PLS_INTEGER; l_ratio NUMBER; l_str VARCHAR2(200); l_lobcnt PLS_INTEGER;
+BEGIN
+  -- table partition, BASIC compression
+  DBMS_COMPRESSION.GET_COMPRESSION_RATIO('USERS','IIBARCH','BACKEND_DETAILS_CLOB_23_2C','JUN_23',
+      DBMS_COMPRESSION.COMP_BASIC, l_blk_cmp, l_blk_uncmp, l_rows_cmp, l_rows_uncmp,
+      l_ratio, l_str, 1000000);
+  DBMS_OUTPUT.PUT_LINE('TABLE '||l_str||' ratio='||l_ratio);
+  -- LOB, SecureFile MEDIUM (replace partition with a small one from 7A)
+  DBMS_COMPRESSION.GET_COMPRESSION_RATIO('USERS','IIBARCH','BACKEND_DETAILS_CLOB_23_2C',
+      'OUTPUT_DATA','JUN_23', DBMS_COMPRESSION.COMP_LOB_MEDIUM,
+      l_blk_cmp, l_blk_uncmp, l_lobcnt, l_ratio, l_str, 1000);
+  DBMS_OUTPUT.PUT_LINE('LOB   '||l_str||' ratio='||l_ratio);
+END;
+/
+
+-- 9E. Move syntax with compression (use after 9A-9D)
+-- Table partition, BASIC (archive data only; later DML is not recompressed):
+--   ALTER TABLE owner.t MOVE PARTITION p TABLESPACE &dest ROW STORE COMPRESS BASIC
+--     LOB (col) STORE AS SECUREFILE (TABLESPACE &dest COMPRESS MEDIUM)
+--     UPDATE INDEXES PARALLEL 4 ONLINE;
+-- LOB-only move with compression:
+--   ALTER TABLE owner.t MOVE PARTITION p
+--     LOB (col) STORE AS SECUREFILE (TABLESPACE &dest COMPRESS MEDIUM);
