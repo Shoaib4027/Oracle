@@ -243,3 +243,39 @@ SPOOL OFF
 -- Files with no extents left can be dropped:
 --   ALTER TABLESPACE IIB_ARCH_TBS_NEW1 DROP DATAFILE '<file>';
 -- Move in batches; check archive/FRA space and v$asm_diskgroup between batches.
+
+-- =============================================================
+-- 8. Follow-up after 7A/7B output (about 4.2 TB of blockers, fits in IIB_ARCH_TBS)
+-- Run 7C (table partitions + LOBs) and 7D first, then 8A for LOB-only partitions.
+-- =============================================================
+
+-- 8A. LOB partitions in NEW1 whose table partition is already in another
+-- tablespace (e.g. API_DETAILS_CLOB_2023C SYS_LOB_P54376/P52851, 246 GB).
+-- Moves only the LOB segment; test on a small partition first.
+SPOOL move_lob_only.sql
+SELECT 'ALTER TABLE '||l.table_owner||'.'||l.table_name||' MOVE PARTITION '||
+       l.partition_name||' LOB ('||l.column_name||') STORE AS (TABLESPACE &dest);'
+FROM   dba_lob_partitions l
+WHERE  l.table_owner = 'IIBARCH'
+AND    l.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    NOT EXISTS (SELECT 1 FROM dba_tab_partitions p
+                   WHERE  p.table_owner = l.table_owner AND p.table_name = l.table_name
+                   AND    p.partition_name = l.partition_name
+                   AND    p.tablespace_name = 'IIB_ARCH_TBS_NEW1')
+ORDER  BY l.table_name, l.partition_name, l.column_name;
+SPOOL OFF
+
+-- 8B. Everything else left in NEW1 after the moves (next round of blockers)
+SELECT owner, segment_type, ROUND(SUM(bytes)/1024/1024/1024) gb
+FROM   dba_segments
+WHERE  tablespace_name = 'IIB_ARCH_TBS_NEW1'
+GROUP  BY owner, segment_type
+ORDER  BY gb DESC;
+
+-- 8C. Index segments of the moved tables that are still in NEW1
+SELECT i.owner, i.index_name, i.table_name, s.segment_type, ROUND(SUM(s.bytes)/1024/1024/1024) gb
+FROM   dba_indexes i
+JOIN   dba_segments s ON s.owner = i.owner AND s.segment_name = i.index_name
+WHERE  s.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+GROUP  BY i.owner, i.index_name, i.table_name, s.segment_type
+ORDER  BY gb DESC;
