@@ -144,3 +144,102 @@ ORDER  BY files_blocked DESC;
 --   table : ALTER TABLE owner.t MOVE ONLINE TABLESPACE new_ts;
 --   index : ALTER INDEX owner.i REBUILD ONLINE TABLESPACE new_ts;
 --   LOB   : ALTER TABLE owner.t MOVE LOB(col) STORE AS (TABLESPACE new_ts);
+
+-- =============================================================
+-- 7. IIB_ARCH_TBS_NEW1: move the blocking segments (Oracle 19c, RU 19.32)
+-- Source tablespace : IIB_ARCH_TBS_NEW1
+-- Destination       : IIB_ARCH_TBS (about 10 TB free; IIB_ARCH_TBS_NEW is similar)
+-- Run 7A and 7B first and send the output; the move script is built from it.
+-- ONLINE partition move is supported in 19c; the ONLINE keyword goes LAST.
+-- =============================================================
+
+-- 7A. Size of every blocking segment (how much data will be moved)
+SELECT owner, segment_name, partition_name, segment_type,
+       ROUND(SUM(bytes)/1024/1024/1024) gb
+FROM   dba_segments
+WHERE  tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    owner = 'IIBARCH'
+AND   (segment_name IN ('BACKEND_PROCESSING_LOG_2022C','API_PROCESS_CLOBDET_2022_1',
+                        'ORCH_API_DETAILS_2023_2C','API_DETAILS_23C','API_LOG_2023_2C',
+                        'BACKEND_PROCESSING_LOG_2023_2C','API_DETAILS_23_2C',
+                        'BACKEND_DETAILS_CLOB_23_2C','API_DETAILS_CLOB_2023C')
+    OR   segment_name LIKE 'SYS_LOB00010299%' OR segment_name LIKE 'SYS_LOB00010300%'
+    OR   segment_name LIKE 'SYS_LOB00009277%' OR segment_name LIKE 'SYS_LOB00009337%')
+GROUP  BY owner, segment_name, partition_name, segment_type
+ORDER  BY gb DESC;
+
+-- 7B. Map the SYS_LOB segments to their parent table and column
+SELECT owner, table_name, column_name, segment_name
+FROM   dba_lobs
+WHERE  segment_name IN ('SYS_LOB0001029983C00004$$','SYS_LOB0001030079C00006$$',
+       'SYS_LOB0001030079C00004$$','SYS_LOB0000927654C00006$$','SYS_LOB0000933731C00006$$',
+       'SYS_LOB0001030079C00005$$','SYS_LOB0001030040C00005$$','SYS_LOB0000927654C00005$$',
+       'SYS_LOB0001030040C00004$$','SYS_LOB0001029983C00003$$');
+
+-- 7C. Generate partition moves (table partition + its LOB partitions together)
+SET LINES 300 PAGES 0 FEEDBACK OFF LONG 100000
+DEFINE dest=IIB_ARCH_TBS
+SPOOL move_partitions.sql
+SELECT 'ALTER TABLE '||p.table_owner||'.'||p.table_name||
+       ' MOVE PARTITION '||p.partition_name||' TABLESPACE &dest'||
+       NVL((SELECT ' '||LISTAGG('LOB ('||l.column_name||') STORE AS (TABLESPACE &dest)',' ')
+                        WITHIN GROUP (ORDER BY l.column_name)
+            FROM   dba_lob_partitions l
+            WHERE  l.table_owner = p.table_owner AND l.table_name = p.table_name
+            AND    l.partition_name = p.partition_name),'')||
+       ' UPDATE INDEXES PARALLEL 4 ONLINE;' AS stmt
+FROM   dba_tab_partitions p
+WHERE  p.table_owner = 'IIBARCH'
+AND    p.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    p.table_name IN ('BACKEND_PROCESSING_LOG_2022C','ORCH_API_DETAILS_2023_2C',
+       'API_DETAILS_23C','API_LOG_2023_2C','BACKEND_PROCESSING_LOG_2023_2C',
+       'API_DETAILS_23_2C','BACKEND_DETAILS_CLOB_23_2C','API_DETAILS_CLOB_2023C')
+ORDER  BY p.table_name, p.partition_position;
+SPOOL OFF
+
+-- 7C-2. LOB partitions still in NEW1 whose table partition is already elsewhere
+SELECT table_owner, table_name, partition_name, column_name, lob_partition_name
+FROM   dba_lob_partitions
+WHERE  tablespace_name = 'IIB_ARCH_TBS_NEW1' AND table_owner = 'IIBARCH'
+AND    (table_owner, table_name, partition_name) NOT IN
+       (SELECT table_owner, table_name, partition_name FROM dba_tab_partitions
+        WHERE tablespace_name = 'IIB_ARCH_TBS_NEW1');
+-- Fix: ALTER TABLE owner.t MOVE PARTITION p LOB (col) STORE AS (TABLESPACE &dest) ONLINE;
+
+-- 7C-3. Subpartitioned tables (check if anything is returned)
+SELECT table_owner, table_name, COUNT(*) FROM dba_tab_subpartitions
+WHERE  tablespace_name = 'IIB_ARCH_TBS_NEW1' GROUP BY table_owner, table_name;
+
+-- 7D. Non-partitioned tables (API_PROCESS_CLOBDET_2022_1 blocks 79 files)
+SPOOL move_tables.sql
+SELECT 'ALTER TABLE '||t.owner||'.'||t.table_name||' MOVE ONLINE TABLESPACE &dest'||
+       NVL((SELECT ' '||LISTAGG('LOB ('||l.column_name||') STORE AS (TABLESPACE &dest)',' ')
+                        WITHIN GROUP (ORDER BY l.column_name)
+            FROM dba_lobs l WHERE l.owner = t.owner AND l.table_name = t.table_name),'')||
+       ' PARALLEL 4;'
+FROM   dba_tables t
+WHERE  t.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    t.table_name IN ('API_PROCESS_CLOBDET_2022_1','EVC_UNIQUE_REQUEST_ID_ARC2',
+                        'PMSBY_JS_FEED_MASTER');
+SPOOL OFF
+-- Indexes: ALTER INDEX owner.PMSBY_TXN_MASTER_25_PK1 REBUILD TABLESPACE &dest ONLINE;
+--          ALTER INDEX owner.<idx> REBUILD PARTITION <p> TABLESPACE &dest ONLINE;
+
+-- 7E. After the moves: rerun 6B/6C, check for unusable indexes, then resize
+SELECT index_owner, index_name, partition_name FROM dba_ind_partitions WHERE status='UNUSABLE';
+SELECT owner, index_name FROM dba_indexes WHERE status='UNUSABLE';
+
+SPOOL resize_new1.sql
+SELECT 'ALTER DATABASE DATAFILE '''||f.file_name||''' RESIZE '||
+       CEIL((NVL(e.hwm,1) * t.block_size)/1024/1024 + 10)||'M;'
+FROM   dba_data_files f
+JOIN   dba_tablespaces t ON t.tablespace_name = f.tablespace_name
+LEFT JOIN (SELECT file_id, MAX(block_id + blocks - 1) hwm
+           FROM dba_extents WHERE tablespace_name = 'IIB_ARCH_TBS_NEW1'
+           GROUP BY file_id) e ON e.file_id = f.file_id
+WHERE  f.tablespace_name = 'IIB_ARCH_TBS_NEW1'
+AND    f.bytes/1024/1024 > CEIL((NVL(e.hwm,1) * t.block_size)/1024/1024 + 10);
+SPOOL OFF
+-- Files with no extents left can be dropped:
+--   ALTER TABLESPACE IIB_ARCH_TBS_NEW1 DROP DATAFILE '<file>';
+-- Move in batches; check archive/FRA space and v$asm_diskgroup between batches.
