@@ -1,0 +1,61 @@
+ASMCMD> du +ARCHDATA/*
+Used_MB      Mirror_used_MB
+1051604216          2103208820
+ASMCMD>
+ASMCMD> ls +ARCHDATA
+ARCHNPR/
+ARCPRCDB/
+HIBDRCDB/
+MIBPRCDB/
+SBISIPR/
+
+SQL>
+PROMPT ===== 1. Diskgroup free vs usable vs required mirror free (GB) =====
+===== 1. Diskgroup free vs usable vs required mirror free (GB) =====
+SQL> SELECT name, type, total_mb/1024 total_gb, free_mb/1024 free_gb,
+  2         required_mirror_free_mb/1024 req_mirror_gb,
+  3         usable_file_mb/1024 usable_gb, offline_disks
+  4  FROM v$asm_diskgroup WHERE name='&ASMGROUP';
+
+NAME                                                         TYPE                   TOTAL_GB    FREE_GB REQ_MIRROR_GB  USABLE_GB OFFLINE_DISKS
+------------------------------------------------------------ -------------------- ---------- ---------- ------------- ---------- -------------
+ARCHDATA                                                     NORMAL               2364761.25 310812.988    212828.512 48822.2441             0
+
+PROMPT ===== 2. Failgroup layout (uneven failgroups raise the reserve) =====
+===== 2. Failgroup layout (uneven failgroups raise the reserve) =====
+SELECT failgroup, COUNT(*) disks, ROUND(SUM(total_mb)/1024) total_gb,
+       ROUND(SUM(free_mb)/1024) free_gb
+  3  FROM v$asm_disk
+WHERE group_number=(SELECT group_number FROM v$asm_diskgroup WHERE name='&ASMGROUP')
+  5  GROUP BY failgroup ORDER BY 1;
+
+FAILGROUP                           DISKS   TOTAL_GB    FREE_GB
+------------------------------ ---------- ---------- ----------
+EISSIPRCELADM04                        12     197063      25906
+EISSIPRCELADM05                        12     197063      25901
+EISSIPRCELADM06                        12     197063      25902
+EISSIPRCELADM07                        12     197063      25899
+EISSIPRCELADM08                        12     197063      25902
+EISSIPRCELADM09                        12     197063      25902
+EISSIPRCELADM13                        12     197063      25898
+EISSIPRCELADM14                        12     197063      25900
+EISSIPRCELADM15                        12     197063      25907
+EISSIPRCELADM16                        12     197063      25898
+EISSIPRCELADM17                        12     197063      25901
+EISSIPRCELADM18                        12     197063      25898
+
+12 rows selected.
+
+PROMPT ===== 3. Rebalance running? =====
+===== 3. Rebalance running? =====
+SQL> SELECT * FROM v$asm_operation;
+
+no rows selected
+
+SELECT mode_status, state, COUNT(*) cnt FROM v$asm_disk
+WHERE group_number=(SELECT group_number FROM v$asm_diskgroup WHERE name='&ASMGROUP')
+  3  GROUP BY mode_status, state;
+
+MODE_ST STATE           CNT
+------- -------- ----------
+ONLINE  NORMAL          144
