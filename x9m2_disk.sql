@@ -1,6 +1,6 @@
 ------------------------------------------------------------------------------------------------------------------------
 --
--- File name:   x9m2_disk.sql  (v3)
+-- File name:   x9m2_disk.sql  (v4)
 --
 -- Purpose:     Exadata X9M-2 disk topology:
 --                ASM diskgroup -> ASM disk -> griddisk -> celldisk -> physical disk -> LUN
@@ -19,6 +19,20 @@
 --              2. Bottom-up topology (all physical disks incl. flash FD_xx / PMEM PM_xx)
 --              3. ASM-only view per diskgroup/cell  (covers cells NOT visible in v$cell_config)
 --              4. Cells visible in v$cell_config
+--
+--              5. Cache summary per diskgroup / cell (three different caches, see below)
+--
+-- Caches:      LUN_CTRL_CACHE   = RAID controller cache of the LUN (lunWriteCacheMode). Normally WriteBack
+--                                 on every HDD; drops to WriteThrough only if the controller battery or
+--                                 CacheVault fails (the "No Write Cache if Bad BBU" policy).
+--              CELL_FLASH_CACHE = Exadata Smart Flash Cache mode of the cell (flashCacheMode):
+--                                 WriteBack or WriteThrough. Per cell, so it applies to all diskgroups there.
+--              GD_CACHING       = griddisk cachingPolicy (default / none). With "none" the diskgroup is
+--                                 not cached in flash at all, whatever the cell's mode.
+--
+-- Note:        v$cell_config is a snapshot held by the instance and can be stale. If something looks wrong,
+--              confirm on the cell:  cellcli -e list lun attributes name,lunWriteCacheMode
+--                                    cellcli -e list cell attributes name,flashCacheMode
 --
 -- Note:        v$cell_config only lists the cells this instance has config for. If section 3 shows
 --              diskgroups/cells missing from section 1 (IN_CELL_CONFIG = NO), run from the ASM instance.
@@ -46,7 +60,10 @@ COL pd_status      FOR A12
 COL pd_model       FOR A28
 COL lun_id         FOR A6
 COL raid           FOR A4
-COL lun_wcache     FOR A60
+COL lun_ctrl_cache FOR A14 HEAD 'LUN_CTRL_CACHE'
+COL cell_flash_cache FOR A16 HEAD 'CELL_FLASH_CACHE'
+COL gd_caching     FOR A10 HEAD 'GD_CACHING'
+COL lun_wcache_full FOR A65
 COL failgroup      FOR A18
 COL cell_ips       FOR A30
 COL cellname       FOR A30
@@ -63,17 +80,20 @@ WITH cfg AS (
   WHERE  conftype IN ('CELL','PHYSICALDISKS','CELLDISKS','GRIDDISKS','LUNS')
 ),
 cell AS (
-  SELECT c.cellname, TRIM(t.cell_host) cell_host
+  SELECT c.cellname, TRIM(t.cell_host) cell_host, TRIM(t.fc_mode) fc_mode
   FROM   cfg c, XMLTABLE('/cli-output/cell' PASSING c.x
-           COLUMNS cell_host VARCHAR2(64) PATH 'name') t
+           COLUMNS cell_host VARCHAR2(64) PATH 'name',
+                   fc_mode   VARCHAR2(30) PATH 'flashCacheMode') t
   WHERE  c.conftype = 'CELL'
 ),
 gd AS (
-  SELECT c.cellname, TRIM(t.gd_name) gd_name, TRIM(t.celldisk) celldisk, TRIM(t.gd_size) gd_size
+  SELECT c.cellname, TRIM(t.gd_name) gd_name, TRIM(t.celldisk) celldisk, TRIM(t.gd_size) gd_size,
+         TRIM(t.gd_cache) gd_cache
   FROM   cfg c, XMLTABLE('/cli-output/griddisk' PASSING c.x
            COLUMNS gd_name   VARCHAR2(64) PATH 'name',
                    celldisk  VARCHAR2(64) PATH 'cellDisk',
-                   gd_size   VARCHAR2(30) PATH 'size') t
+                   gd_size   VARCHAR2(30) PATH 'size',
+                   gd_cache  VARCHAR2(30) PATH 'cachingPolicy') t
   WHERE  c.conftype = 'GRIDDISKS'
 ),
 cd AS (
@@ -124,7 +144,9 @@ SELECT adg.name                                    asm_diskgroup,
        SUBSTR(pd.pd_status,1,12)                   pd_status,
        lun.lun_id,
        lun.raid,
-       SUBSTR(lun.wcache,1,60)                     lun_wcache
+       REGEXP_SUBSTR(lun.wcache, '^[^,]+')         lun_ctrl_cache,
+       cell.fc_mode                                cell_flash_cache,
+       gd.gd_cache                                 gd_caching
 FROM   gd
 LEFT JOIN cell ON cell.cellname = gd.cellname
 LEFT JOIN v$asm_disk_stat ad       ON ad.path = 'o/' || gd.cellname || '/' || gd.gd_name
@@ -148,9 +170,10 @@ WITH cfg AS (
   WHERE  conftype IN ('CELL','PHYSICALDISKS','CELLDISKS','GRIDDISKS','LUNS')
 ),
 cell AS (
-  SELECT c.cellname, TRIM(t.cell_host) cell_host
+  SELECT c.cellname, TRIM(t.cell_host) cell_host, TRIM(t.fc_mode) fc_mode
   FROM   cfg c, XMLTABLE('/cli-output/cell' PASSING c.x
-           COLUMNS cell_host VARCHAR2(64) PATH 'name') t
+           COLUMNS cell_host VARCHAR2(64) PATH 'name',
+                   fc_mode   VARCHAR2(30) PATH 'flashCacheMode') t
   WHERE  c.conftype = 'CELL'
 ),
 gd AS (
@@ -201,7 +224,8 @@ SELECT NVL(cell.cell_host, pd.cellname)   cell_host,
        SUBSTR(pd.pd_status,1,12)          pd_status,
        SUBSTR(pd.model,1,28)              pd_model,
        lun.lun_id,
-       SUBSTR(lun.wcache,1,60)            lun_wcache,
+       REGEXP_SUBSTR(lun.wcache, '^[^,]+')  lun_ctrl_cache,
+       cell.fc_mode                       cell_flash_cache,
        cd.cd_name                         celldisk,
        cd.devname                         cd_dev,
        gd.gd_name                         griddisk,
@@ -255,3 +279,71 @@ FROM   v$cell_config c,
                 COLUMNS cell_host VARCHAR2(64) PATH 'name') t
 WHERE  c.conftype = 'CELL'
 ORDER  BY t.cell_host;
+
+------------------------------------------------------------------------------------------------------------------------
+PROMPT
+PROMPT ==== 5. Cache summary per diskgroup / cell (LUN controller cache vs cell flash cache vs griddisk policy) ====
+------------------------------------------------------------------------------------------------------------------------
+BREAK ON asm_diskgroup SKIP 1
+
+WITH cfg AS (
+  SELECT /*+ MATERIALIZE */ cellname, conftype, XMLTYPE(confval) x
+  FROM   v$cell_config
+  WHERE  conftype IN ('CELL','PHYSICALDISKS','CELLDISKS','GRIDDISKS','LUNS')
+),
+cell AS (
+  SELECT c.cellname, TRIM(t.cell_host) cell_host, TRIM(t.fc_mode) fc_mode
+  FROM   cfg c, XMLTABLE('/cli-output/cell' PASSING c.x
+           COLUMNS cell_host VARCHAR2(64) PATH 'name',
+                   fc_mode   VARCHAR2(30) PATH 'flashCacheMode') t
+  WHERE  c.conftype = 'CELL'
+),
+gd AS (
+  SELECT c.cellname, TRIM(t.gd_name) gd_name, TRIM(t.celldisk) celldisk, TRIM(t.gd_cache) gd_cache
+  FROM   cfg c, XMLTABLE('/cli-output/griddisk' PASSING c.x
+           COLUMNS gd_name   VARCHAR2(64) PATH 'name',
+                   celldisk  VARCHAR2(64) PATH 'cellDisk',
+                   gd_cache  VARCHAR2(30) PATH 'cachingPolicy') t
+  WHERE  c.conftype = 'GRIDDISKS'
+),
+cd AS (
+  SELECT c.cellname, TRIM(t.cd_name) cd_name, TRIM(t.physdisk) physdisk
+  FROM   cfg c, XMLTABLE('/cli-output/celldisk' PASSING c.x
+           COLUMNS cd_name   VARCHAR2(64) PATH 'name',
+                   physdisk  VARCHAR2(64) PATH 'physicalDisk') t
+  WHERE  c.conftype = 'CELLDISKS'
+),
+pd AS (
+  SELECT c.cellname, TRIM(t.serial) serial, TRIM(t.luns) luns
+  FROM   cfg c, XMLTABLE('/cli-output/physicaldisk' PASSING c.x
+           COLUMNS serial    VARCHAR2(64)  PATH 'physicalSerial',
+                   luns      VARCHAR2(200) PATH 'luns') t
+  WHERE  c.conftype = 'PHYSICALDISKS'
+),
+lun AS (
+  SELECT c.cellname, TRIM(t.lun_id) lun_id, TRIM(REPLACE(t.wcache, '"')) wcache
+  FROM   cfg c, XMLTABLE('/cli-output/lun' PASSING c.x
+           COLUMNS lun_id   VARCHAR2(64)  PATH 'id',
+                   wcache   VARCHAR2(200) PATH 'lunWriteCacheMode') t
+  WHERE  c.conftype = 'LUNS'
+)
+SELECT adg.name                                                          asm_diskgroup,
+       NVL(cell.cell_host, gd.cellname)                                  cell_host,
+       COUNT(*)                                                          griddisks,
+       SUM(CASE WHEN lun.wcache LIKE 'WriteBack%'    THEN 1 ELSE 0 END)  lun_wb,
+       SUM(CASE WHEN lun.wcache LIKE 'WriteThrough%' THEN 1 ELSE 0 END)  lun_wt,
+       SUM(CASE WHEN lun.wcache IS NULL              THEN 1 ELSE 0 END)  lun_unknown,
+       MAX(cell.fc_mode)                                                 cell_flash_cache,
+       LISTAGG(DISTINCT gd.gd_cache, ',') WITHIN GROUP (ORDER BY gd.gd_cache) gd_caching,
+       MAX(lun.wcache)                                                   lun_wcache_full
+FROM   gd
+LEFT JOIN cell ON cell.cellname = gd.cellname
+LEFT JOIN v$asm_disk_stat ad       ON ad.path = 'o/' || gd.cellname || '/' || gd.gd_name
+LEFT JOIN v$asm_diskgroup_stat adg ON adg.group_number = ad.group_number
+LEFT JOIN cd  ON cd.cellname  = gd.cellname AND cd.cd_name = gd.celldisk
+LEFT JOIN pd  ON pd.cellname  = cd.cellname AND pd.serial  = cd.physdisk
+LEFT JOIN lun ON lun.cellname = pd.cellname AND lun.lun_id = pd.luns
+GROUP  BY adg.name, NVL(cell.cell_host, gd.cellname)
+ORDER  BY 1, 2;
+
+CLEAR BREAKS
