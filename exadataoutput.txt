@@ -1,0 +1,673 @@
+SQL> SQL> breaks cleared
+SET LINES 300 PAGES 5000 TRIMSPOOL ON VERIFY OFF FEEDBACK ON
+SQL>
+SQL> COL cell_host      FOR A16
+SQL> COL asm_diskgroup  FOR A12
+SQL> COL asm_disk       FOR A28
+SQL> COL asm_mode       FOR A8
+SQL> COL griddisk       FOR A28
+SQL> COL gd_size        FOR A10
+SQL> COL celldisk       FOR A16
+SQL> COL cd_type        FOR A10
+SQL> COL lun_dev        FOR A12
+SQL> COL physdisk       FOR A10
+SQL> COL pd_type        FOR A10
+SQL> COL slot           FOR A6
+SQL> COL pd_status      FOR A14
+SQL>
+SQL> ------------------------------------------------------------------------------------------------------------------------
+SQL> PROMPT
+
+SQL> PROMPT ==== 1. Top-down: ASM diskgroup -> griddisk -> celldisk -> LUN -> physical disk ====
+==== 1. Top-down: ASM diskgroup -> griddisk -> celldisk -> LUN -> physical disk ====
+SQL> ------------------------------------------------------------------------------------------------------------------------
+SQL> BREAK ON asm_diskgroup SKIP 1
+SQL>
+SQL> WITH cfg AS (
+  SELECT /*+ MATERIALIZE */ cellname, conftype, XMLTYPE(confval) x
+  3    FROM   v$cell_config
+  WHERE  conftype IN ('CELL','PHYSICALDISKS','CELLDISKS','GRIDDISKS','LUNS')
+),
+  6  cell AS (
+  7    SELECT c.cellname, t.cell_host
+  8    FROM   cfg c, XMLTABLE('/cli-output/cell' PASSING c.x
+           COLUMNS cell_host VARCHAR2(64) PATH 'name') t
+ 10    WHERE  c.conftype = 'CELL'
+),
+ 12  gd AS (
+ 13    SELECT c.cellname, t.*
+ 14    FROM   cfg c, XMLTABLE('/cli-output/griddisk' PASSING c.x
+           COLUMNS gd_name   VARCHAR2(64) PATH 'name',
+                   celldisk  VARCHAR2(64) PATH 'cellDisk',
+                   asm_name  VARCHAR2(64) PATH 'asmDiskName',
+                   gd_size   VARCHAR2(30) PATH 'size',
+                   gd_status VARCHAR2(30) PATH 'status') t
+ 20    WHERE  c.conftype = 'GRIDDISKS'
+),
+ 22  cd AS (
+ 23    SELECT c.cellname, t.*
+ 24    FROM   cfg c, XMLTABLE('/cli-output/celldisk' PASSING c.x
+           COLUMNS cd_name   VARCHAR2(64) PATH 'name',
+                   cd_type   VARCHAR2(30) PATH 'diskType',
+                   lun       VARCHAR2(64) PATH 'lun',
+                   physdisk  VARCHAR2(64) PATH 'physicalDisk',
+                   devpart   VARCHAR2(64) PATH 'devicePartition') t
+ 30    WHERE  c.conftype = 'CELLDISKS'
+),
+ 32  lun AS (
+ 33    SELECT c.cellname, t.*
+ 34    FROM   cfg c, XMLTABLE('/cli-output/lun' PASSING c.x
+           COLUMNS lun_id    VARCHAR2(64) PATH 'id',
+                   celldisk  VARCHAR2(64) PATH 'cellDisk',
+                   lun_dev   VARCHAR2(64) PATH 'deviceName',
+                   wcache    VARCHAR2(40) PATH 'lunWriteCacheMode') t
+ 39    WHERE  c.conftype = 'LUNS'
+),
+ 41  pd AS (
+ 42    SELECT c.cellname, t.*
+ 43    FROM   cfg c, XMLTABLE('/cli-output/physicaldisk' PASSING c.x
+           COLUMNS pd_id     VARCHAR2(64) PATH 'id',
+                   pd_name   VARCHAR2(64) PATH 'name',
+                   pd_type   VARCHAR2(30) PATH 'diskType',
+                   slot      VARCHAR2(30) PATH 'slotNumber',
+                   pd_status VARCHAR2(60) PATH 'status') t
+ 49    WHERE  c.conftype = 'PHYSICALDISKS'
+)
+ 51  SELECT adg.name                           asm_diskgroup,
+ 52         ad.name                            asm_disk,
+ 53         ad.mode_status                     asm_mode,
+ 54         gd.gd_name                         griddisk,
+ 55         gd.gd_size,
+ 56         cd.cd_name                         celldisk,
+ 57         cd.cd_type,
+       NVL(cell.cell_host, gd.cellname)   cell_host,
+ 59         lun.lun_dev,
+ 60         pd.pd_name                         physdisk,
+ 61         pd.slot,
+       SUBSTR(pd.pd_status,1,14)          pd_status
+ 63  FROM   gd
+ 64  LEFT JOIN cell ON cell.cellname = gd.cellname
+ 65  LEFT JOIN v$asm_disk_stat ad
+ 66         ON ad.path = 'o/' || gd.cellname || '/' || gd.gd_name
+ 67  LEFT JOIN v$asm_diskgroup_stat adg ON adg.group_number = ad.group_number
+ 68  LEFT JOIN cd  ON cd.cellname  = gd.cellname AND cd.cd_name  = gd.celldisk
+LEFT JOIN lun ON lun.cellname = cd.cellname AND (lun.celldisk = cd.cd_name OR lun.lun_id = cd.lun)
+LEFT JOIN pd  ON pd.cellname  = cd.cellname AND (pd.pd_id = cd.physdisk OR pd.pd_name = cd.physdisk)
+ 71  ORDER  BY asm_diskgroup, cell_host, celldisk, griddisk;
+
+CLEAR BREAKS
+
+ASM_DG       ASMDISK                      ASM_MODE GRIDDISK                     GD_SIZE    CELLDISK         CD_TYPE    CELL_HOST        LUN_DEV      PHYSDISK   SLOT   PD_STATUS
+------------ ---------------------------- -------- ---------------------------- ---------- ---------------- ---------- ---------------- ------------ ---------- ------ --------------
+EISDATA      EISDATA_CD_00_EISSIDRCELADM0 ONLINE   EISDATA_CD_00_eissidrceladm0 1534699189 CD_00_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_01_EISSIDRCELADM0 ONLINE   EISDATA_CD_01_eissidrceladm0 1534699189 CD_01_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_02_EISSIDRCELADM0 ONLINE   EISDATA_CD_02_eissidrceladm0 1534699189 CD_02_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_03_EISSIDRCELADM0 ONLINE   EISDATA_CD_03_eissidrceladm0 1534699189 CD_03_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_04_EISSIDRCELADM0 ONLINE   EISDATA_CD_04_eissidrceladm0 1534699189 CD_04_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_05_EISSIDRCELADM0 ONLINE   EISDATA_CD_05_eissidrceladm0 1534699189 CD_05_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_06_EISSIDRCELADM0 ONLINE   EISDATA_CD_06_eissidrceladm0 1534699189 CD_06_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_07_EISSIDRCELADM0 ONLINE   EISDATA_CD_07_eissidrceladm0 1534699189 CD_07_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_08_EISSIDRCELADM0 ONLINE   EISDATA_CD_08_eissidrceladm0 1534699189 CD_08_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_09_EISSIDRCELADM0 ONLINE   EISDATA_CD_09_eissidrceladm0 1534699189 CD_09_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_10_EISSIDRCELADM0 ONLINE   EISDATA_CD_10_eissidrceladm0 1534699189 CD_10_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_11_EISSIDRCELADM0 ONLINE   EISDATA_CD_11_eissidrceladm0 1534699189 CD_11_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            0432       adm01
+
+             EISDATA_CD_00_EISSIDRCELADM0 ONLINE   EISDATA_CD_00_eissidrceladm0 1534699189 CD_00_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_01_EISSIDRCELADM0 ONLINE   EISDATA_CD_01_eissidrceladm0 1534699189 CD_01_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_02_EISSIDRCELADM0 ONLINE   EISDATA_CD_02_eissidrceladm0 1534699189 CD_02_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_03_EISSIDRCELADM0 ONLINE   EISDATA_CD_03_eissidrceladm0 1534699189 CD_03_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_04_EISSIDRCELADM0 ONLINE   EISDATA_CD_04_eissidrceladm0 1534699189 CD_04_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_05_EISSIDRCELADM0 ONLINE   EISDATA_CD_05_eissidrceladm0 1534699189 CD_05_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_06_EISSIDRCELADM0 ONLINE   EISDATA_CD_06_eissidrceladm0 1534699189 CD_06_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_07_EISSIDRCELADM0 ONLINE   EISDATA_CD_07_eissidrceladm0 1534699189 CD_07_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_08_EISSIDRCELADM0 ONLINE   EISDATA_CD_08_eissidrceladm0 1534699189 CD_08_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_09_EISSIDRCELADM0 ONLINE   EISDATA_CD_09_eissidrceladm0 1534699189 CD_09_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_10_EISSIDRCELADM0 ONLINE   EISDATA_CD_10_eissidrceladm0 1534699189 CD_10_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_11_EISSIDRCELADM0 ONLINE   EISDATA_CD_11_eissidrceladm0 1534699189 CD_11_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            0432       adm02
+
+             EISDATA_CD_00_EISSIDRCELADM0 ONLINE   EISDATA_CD_00_eissidrceladm0 1534699189 CD_00_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_01_EISSIDRCELADM0 ONLINE   EISDATA_CD_01_eissidrceladm0 1534699189 CD_01_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_02_EISSIDRCELADM0 ONLINE   EISDATA_CD_02_eissidrceladm0 1534699189 CD_02_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_03_EISSIDRCELADM0 ONLINE   EISDATA_CD_03_eissidrceladm0 1534699189 CD_03_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_04_EISSIDRCELADM0 ONLINE   EISDATA_CD_04_eissidrceladm0 1534699189 CD_04_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_05_EISSIDRCELADM0 ONLINE   EISDATA_CD_05_eissidrceladm0 1534699189 CD_05_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_06_EISSIDRCELADM0 ONLINE   EISDATA_CD_06_eissidrceladm0 1534699189 CD_06_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_07_EISSIDRCELADM0 ONLINE   EISDATA_CD_07_eissidrceladm0 1534699189 CD_07_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_08_EISSIDRCELADM0 ONLINE   EISDATA_CD_08_eissidrceladm0 1534699189 CD_08_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_09_EISSIDRCELADM0 ONLINE   EISDATA_CD_09_eissidrceladm0 1534699189 CD_09_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_10_EISSIDRCELADM0 ONLINE   EISDATA_CD_10_eissidrceladm0 1534699189 CD_10_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_11_EISSIDRCELADM0 ONLINE   EISDATA_CD_11_eissidrceladm0 1534699189 CD_11_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            0432       adm03
+
+             EISDATA_CD_00_EISSIDRCELADM1 ONLINE   EISDATA_CD_00_eissidrceladm1 1534699189 CD_00_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_01_EISSIDRCELADM1 ONLINE   EISDATA_CD_01_eissidrceladm1 1534699189 CD_01_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_02_EISSIDRCELADM1 ONLINE   EISDATA_CD_02_eissidrceladm1 1534699189 CD_02_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_03_EISSIDRCELADM1 ONLINE   EISDATA_CD_03_eissidrceladm1 1534699189 CD_03_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_04_EISSIDRCELADM1 ONLINE   EISDATA_CD_04_eissidrceladm1 1534699189 CD_04_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_05_EISSIDRCELADM1 ONLINE   EISDATA_CD_05_eissidrceladm1 1534699189 CD_05_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_06_EISSIDRCELADM1 ONLINE   EISDATA_CD_06_eissidrceladm1 1534699189 CD_06_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_07_EISSIDRCELADM1 ONLINE   EISDATA_CD_07_eissidrceladm1 1534699189 CD_07_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_08_EISSIDRCELADM1 ONLINE   EISDATA_CD_08_eissidrceladm1 1534699189 CD_08_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_09_EISSIDRCELADM1 ONLINE   EISDATA_CD_09_eissidrceladm1 1534699189 CD_09_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_10_EISSIDRCELADM1 ONLINE   EISDATA_CD_10_eissidrceladm1 1534699189 CD_10_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_11_EISSIDRCELADM1 ONLINE   EISDATA_CD_11_eissidrceladm1 1534699189 CD_11_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            0432       adm10
+
+             EISDATA_CD_00_EISSIDRCELADM1 ONLINE   EISDATA_CD_00_eissidrceladm1 1534699189 CD_00_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_01_EISSIDRCELADM1 ONLINE   EISDATA_CD_01_eissidrceladm1 1534699189 CD_01_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_02_EISSIDRCELADM1 ONLINE   EISDATA_CD_02_eissidrceladm1 1534699189 CD_02_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_03_EISSIDRCELADM1 ONLINE   EISDATA_CD_03_eissidrceladm1 1534699189 CD_03_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_04_EISSIDRCELADM1 ONLINE   EISDATA_CD_04_eissidrceladm1 1534699189 CD_04_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_05_EISSIDRCELADM1 ONLINE   EISDATA_CD_05_eissidrceladm1 1534699189 CD_05_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_06_EISSIDRCELADM1 ONLINE   EISDATA_CD_06_eissidrceladm1 1534699189 CD_06_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_07_EISSIDRCELADM1 ONLINE   EISDATA_CD_07_eissidrceladm1 1534699189 CD_07_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_08_EISSIDRCELADM1 ONLINE   EISDATA_CD_08_eissidrceladm1 1534699189 CD_08_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_09_EISSIDRCELADM1 ONLINE   EISDATA_CD_09_eissidrceladm1 1534699189 CD_09_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_10_EISSIDRCELADM1 ONLINE   EISDATA_CD_10_eissidrceladm1 1534699189 CD_10_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_11_EISSIDRCELADM1 ONLINE   EISDATA_CD_11_eissidrceladm1 1534699189 CD_11_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            0432       adm11
+
+             EISDATA_CD_00_EISSIDRCELADM1 ONLINE   EISDATA_CD_00_eissidrceladm1 1534699189 CD_00_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_01_EISSIDRCELADM1 ONLINE   EISDATA_CD_01_eissidrceladm1 1534699189 CD_01_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_02_EISSIDRCELADM1 ONLINE   EISDATA_CD_02_eissidrceladm1 1534699189 CD_02_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_03_EISSIDRCELADM1 ONLINE   EISDATA_CD_03_eissidrceladm1 1534699189 CD_03_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_04_EISSIDRCELADM1 ONLINE   EISDATA_CD_04_eissidrceladm1 1534699189 CD_04_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_05_EISSIDRCELADM1 ONLINE   EISDATA_CD_05_eissidrceladm1 1534699189 CD_05_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_06_EISSIDRCELADM1 ONLINE   EISDATA_CD_06_eissidrceladm1 1534699189 CD_06_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_07_EISSIDRCELADM1 ONLINE   EISDATA_CD_07_eissidrceladm1 1534699189 CD_07_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_08_EISSIDRCELADM1 ONLINE   EISDATA_CD_08_eissidrceladm1 1534699189 CD_08_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_09_EISSIDRCELADM1 ONLINE   EISDATA_CD_09_eissidrceladm1 1534699189 CD_09_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_10_EISSIDRCELADM1 ONLINE   EISDATA_CD_10_eissidrceladm1 1534699189 CD_10_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+             EISDATA_CD_11_EISSIDRCELADM1 ONLINE   EISDATA_CD_11_eissidrceladm1 1534699189 CD_11_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            0432       adm12
+
+
+EISRECO      EISRECO_CD_00_EISSIDRCELADM0 ONLINE   EISRECO_CD_00_eissidrceladm0 2244120412 CD_00_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_01_EISSIDRCELADM0 ONLINE   EISRECO_CD_01_eissidrceladm0 2244120412 CD_01_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_02_EISSIDRCELADM0 ONLINE   EISRECO_CD_02_eissidrceladm0 2244120412 CD_02_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_03_EISSIDRCELADM0 ONLINE   EISRECO_CD_03_eissidrceladm0 2244120412 CD_03_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_04_EISSIDRCELADM0 ONLINE   EISRECO_CD_04_eissidrceladm0 2244120412 CD_04_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_05_EISSIDRCELADM0 ONLINE   EISRECO_CD_05_eissidrceladm0 2244120412 CD_05_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_06_EISSIDRCELADM0 ONLINE   EISRECO_CD_06_eissidrceladm0 2244120412 CD_06_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_07_EISSIDRCELADM0 ONLINE   EISRECO_CD_07_eissidrceladm0 2244120412 CD_07_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_08_EISSIDRCELADM0 ONLINE   EISRECO_CD_08_eissidrceladm0 2244120412 CD_08_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_09_EISSIDRCELADM0 ONLINE   EISRECO_CD_09_eissidrceladm0 2244120412 CD_09_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_10_EISSIDRCELADM0 ONLINE   EISRECO_CD_10_eissidrceladm0 2244120412 CD_10_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_11_EISSIDRCELADM0 ONLINE   EISRECO_CD_11_eissidrceladm0 2244120412 CD_11_eissidrcel HardDisk   eissidrceladm01
+             1                                     1                            160        adm01
+
+             EISRECO_CD_00_EISSIDRCELADM0 ONLINE   EISRECO_CD_00_eissidrceladm0 2244120412 CD_00_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_01_EISSIDRCELADM0 ONLINE   EISRECO_CD_01_eissidrceladm0 2244120412 CD_01_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_02_EISSIDRCELADM0 ONLINE   EISRECO_CD_02_eissidrceladm0 2244120412 CD_02_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_03_EISSIDRCELADM0 ONLINE   EISRECO_CD_03_eissidrceladm0 2244120412 CD_03_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_04_EISSIDRCELADM0 ONLINE   EISRECO_CD_04_eissidrceladm0 2244120412 CD_04_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_05_EISSIDRCELADM0 ONLINE   EISRECO_CD_05_eissidrceladm0 2244120412 CD_05_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_06_EISSIDRCELADM0 ONLINE   EISRECO_CD_06_eissidrceladm0 2244120412 CD_06_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_07_EISSIDRCELADM0 ONLINE   EISRECO_CD_07_eissidrceladm0 2244120412 CD_07_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_08_EISSIDRCELADM0 ONLINE   EISRECO_CD_08_eissidrceladm0 2244120412 CD_08_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_09_EISSIDRCELADM0 ONLINE   EISRECO_CD_09_eissidrceladm0 2244120412 CD_09_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_10_EISSIDRCELADM0 ONLINE   EISRECO_CD_10_eissidrceladm0 2244120412 CD_10_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_11_EISSIDRCELADM0 ONLINE   EISRECO_CD_11_eissidrceladm0 2244120412 CD_11_eissidrcel HardDisk   eissidrceladm02
+             2                                     2                            160        adm02
+
+             EISRECO_CD_00_EISSIDRCELADM0 ONLINE   EISRECO_CD_00_eissidrceladm0 2244120412 CD_00_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_01_EISSIDRCELADM0 ONLINE   EISRECO_CD_01_eissidrceladm0 2244120412 CD_01_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_02_EISSIDRCELADM0 ONLINE   EISRECO_CD_02_eissidrceladm0 2244120412 CD_02_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_03_EISSIDRCELADM0 ONLINE   EISRECO_CD_03_eissidrceladm0 2244120412 CD_03_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_04_EISSIDRCELADM0 ONLINE   EISRECO_CD_04_eissidrceladm0 2244120412 CD_04_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_05_EISSIDRCELADM0 ONLINE   EISRECO_CD_05_eissidrceladm0 2244120412 CD_05_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_06_EISSIDRCELADM0 ONLINE   EISRECO_CD_06_eissidrceladm0 2244120412 CD_06_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_07_EISSIDRCELADM0 ONLINE   EISRECO_CD_07_eissidrceladm0 2244120412 CD_07_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_08_EISSIDRCELADM0 ONLINE   EISRECO_CD_08_eissidrceladm0 2244120412 CD_08_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_09_EISSIDRCELADM0 ONLINE   EISRECO_CD_09_eissidrceladm0 2244120412 CD_09_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_10_EISSIDRCELADM0 ONLINE   EISRECO_CD_10_eissidrceladm0 2244120412 CD_10_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_11_EISSIDRCELADM0 ONLINE   EISRECO_CD_11_eissidrceladm0 2244120412 CD_11_eissidrcel HardDisk   eissidrceladm03
+             3                                     3                            160        adm03
+
+             EISRECO_CD_00_EISSIDRCELADM1 ONLINE   EISRECO_CD_00_eissidrceladm1 2244120412 CD_00_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_01_EISSIDRCELADM1 ONLINE   EISRECO_CD_01_eissidrceladm1 2244120412 CD_01_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_02_EISSIDRCELADM1 ONLINE   EISRECO_CD_02_eissidrceladm1 2244120412 CD_02_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_03_EISSIDRCELADM1 ONLINE   EISRECO_CD_03_eissidrceladm1 2244120412 CD_03_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_04_EISSIDRCELADM1 ONLINE   EISRECO_CD_04_eissidrceladm1 2244120412 CD_04_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_05_EISSIDRCELADM1 ONLINE   EISRECO_CD_05_eissidrceladm1 2244120412 CD_05_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_06_EISSIDRCELADM1 ONLINE   EISRECO_CD_06_eissidrceladm1 2244120412 CD_06_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_07_EISSIDRCELADM1 ONLINE   EISRECO_CD_07_eissidrceladm1 2244120412 CD_07_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_08_EISSIDRCELADM1 ONLINE   EISRECO_CD_08_eissidrceladm1 2244120412 CD_08_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_09_EISSIDRCELADM1 ONLINE   EISRECO_CD_09_eissidrceladm1 2244120412 CD_09_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_10_EISSIDRCELADM1 ONLINE   EISRECO_CD_10_eissidrceladm1 2244120412 CD_10_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_11_EISSIDRCELADM1 ONLINE   EISRECO_CD_11_eissidrceladm1 2244120412 CD_11_eissidrcel HardDisk   eissidrceladm10
+             0                                     0                            160        adm10
+
+             EISRECO_CD_00_EISSIDRCELADM1 ONLINE   EISRECO_CD_00_eissidrceladm1 2244120412 CD_00_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_01_EISSIDRCELADM1 ONLINE   EISRECO_CD_01_eissidrceladm1 2244120412 CD_01_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_02_EISSIDRCELADM1 ONLINE   EISRECO_CD_02_eissidrceladm1 2244120412 CD_02_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_03_EISSIDRCELADM1 ONLINE   EISRECO_CD_03_eissidrceladm1 2244120412 CD_03_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_04_EISSIDRCELADM1 ONLINE   EISRECO_CD_04_eissidrceladm1 2244120412 CD_04_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_05_EISSIDRCELADM1 ONLINE   EISRECO_CD_05_eissidrceladm1 2244120412 CD_05_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_06_EISSIDRCELADM1 ONLINE   EISRECO_CD_06_eissidrceladm1 2244120412 CD_06_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_07_EISSIDRCELADM1 ONLINE   EISRECO_CD_07_eissidrceladm1 2244120412 CD_07_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_08_EISSIDRCELADM1 ONLINE   EISRECO_CD_08_eissidrceladm1 2244120412 CD_08_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_09_EISSIDRCELADM1 ONLINE   EISRECO_CD_09_eissidrceladm1 2244120412 CD_09_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_10_EISSIDRCELADM1 ONLINE   EISRECO_CD_10_eissidrceladm1 2244120412 CD_10_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_11_EISSIDRCELADM1 ONLINE   EISRECO_CD_11_eissidrceladm1 2244120412 CD_11_eissidrcel HardDisk   eissidrceladm11
+             1                                     1                            160        adm11
+
+             EISRECO_CD_00_EISSIDRCELADM1 ONLINE   EISRECO_CD_00_eissidrceladm1 2244120412 CD_00_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_01_EISSIDRCELADM1 ONLINE   EISRECO_CD_01_eissidrceladm1 2244120412 CD_01_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_02_EISSIDRCELADM1 ONLINE   EISRECO_CD_02_eissidrceladm1 2244120412 CD_02_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_03_EISSIDRCELADM1 ONLINE   EISRECO_CD_03_eissidrceladm1 2244120412 CD_03_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_04_EISSIDRCELADM1 ONLINE   EISRECO_CD_04_eissidrceladm1 2244120412 CD_04_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_05_EISSIDRCELADM1 ONLINE   EISRECO_CD_05_eissidrceladm1 2244120412 CD_05_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_06_EISSIDRCELADM1 ONLINE   EISRECO_CD_06_eissidrceladm1 2244120412 CD_06_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_07_EISSIDRCELADM1 ONLINE   EISRECO_CD_07_eissidrceladm1 2244120412 CD_07_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_08_EISSIDRCELADM1 ONLINE   EISRECO_CD_08_eissidrceladm1 2244120412 CD_08_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_09_EISSIDRCELADM1 ONLINE   EISRECO_CD_09_eissidrceladm1 2244120412 CD_09_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_10_EISSIDRCELADM1 ONLINE   EISRECO_CD_10_eissidrceladm1 2244120412 CD_10_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+             EISRECO_CD_11_EISSIDRCELADM1 ONLINE   EISRECO_CD_11_eissidrceladm1 2244120412 CD_11_eissidrcel HardDisk   eissidrceladm12
+             2                                     2                            160        adm12
+
+
+
+144 rows selected.
+
+SQL> SQL> breaks cleared
+SET LONG 4000
+SELECT DBMS_LOB.SUBSTR(confval, 2000, 1) griddisk_xml
+  2  FROM   v$cell_config
+  3  WHERE  conftype = 'GRIDDISKS' AND ROWNUM = 1;
+
+GRIDDISK_XML
+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------
+<?xml version="1.0" encoding="utf-8" ?>
+<cli-output>
+<version>1.0</version>
+<timestamp>1795429134289</timestamp>
+<context cell="eissidrceladm02"/>
+<griddisk> <name>EISDATA_CD_00_eissidrceladm02</name>
+ <asmDiskGroupName>EISDATA</asmDiskGroupName>
+ <asmDiskName>EISDATA_CD_00_EISSIDRCELADM02</asmDiskName>
+ <asmFailGroupName>EISSIDRCELADM02</asmFailGroupName>
+ <availableTo></availableTo>
+ <cachedBy>FD_02_eissidrceladm02</cachedBy>
+ <cachingPolicy>default</cachingPolicy>
+ <cellDisk>CD_00_eissidrceladm02</cellDisk>
+ <comment>&quot;Cluster eissidr-clu&quot;</comment>
+ <creationTime>2023-11-17T11:47:34+05:30</creationTime>
+ <diskType>HardDisk</diskType>
+ <id>9e62dc68-4610-4519-bea8-2ab81728be42</id>
+ <size>15346991890432</size>
+ <status>active</status>
+</griddisk>
+
+<griddisk> <name>EISDATA_CD_01_eissidrceladm02</name>
+ <asmDiskGroupName>EISDATA</asmDiskGroupName>
+ <asmDiskName>EISDATA_CD_01_EISSIDRCELADM02</asmDiskName>
+ <asmFailGroupName>EISSIDRCELADM02</asmFailGroupName>
+ <availableTo></availableTo>
+ <cachedBy>FD_00_eissidrceladm02</cachedBy>
+ <cachingPolicy>default</cachingPolicy>
+ <cellDisk>CD_01_eissidrceladm02</cellDisk>
+ <comment>&quot;Cluster eissidr-clu&quot;</comment>
+ <creationTime>2023-11-17T11:47:34+05:30</creationTime>
+ <diskType>HardDisk</diskType>
+ <id>1171b23b-490a-4a80-a5f2-eca7046d6cb8</id>
+ <size>15346991890432</size>
+ <status>active</status>
+</griddisk>
+
+<griddisk> <name>EISDATA_CD_02_eissidrceladm02</name>
+ <asmDiskGroupName>EISDATA</asmDiskGroupName>
+ <asmDiskName>EISDATA_CD_02_EISSIDRCELADM02</asmDiskName>
+ <asmFailGroupName>EISSIDRCELADM02</asmFailGroupName>
+ <availableTo></availableTo>
+ <cachedBy>FD_03_eissidrceladm02</cachedBy>
+ <cachingPolicy>default</cachingPolicy>
+ <cellDisk>CD_02_eissidrceladm02</cellDisk>
+ <comment>&quot;Cluster eissidr-clu&quot;</comment>
+ <creationTime>2023-11-17T11:47:34+05:30</creationTime>
+ <diskType>HardDisk</diskType>
+ <id>c0cd3dc2-41cf-44b2-8a72-d2710161f431</id>
+ <size>15346991890432</size>
+ <status>active</status>
+
+
+1 row selected.
+
+
+SQL> ------------------------------------------------------------------------------------------------------------------------
+SQL> PROMPT
+
+PROMPT ==== 3. Diagnostics (if sections 1/2 show empty columns or errors) ====
+==== 3. Diagnostics (if sections 1/2 show empty columns or errors) ====
+SQL> ------------------------------------------------------------------------------------------------------------------------
+SQL> COL cellname FOR A40
+SQL> COL conftype FOR A20
+SQL> COL path     FOR A70
+SQL>
+PROMPT -- 3a. Config types available per cell (all of CELL, CELLDISKS, GRIDDISKS, LUNS, PHYSICALDISKS should exist)
+-- 3a. Config types available per cell (all of CELL, CELLDISKS, GRIDDISKS, LUNS, PHYSICALDISKS should exist)
+SELECT cellname, conftype, DBMS_LOB.GETLENGTH(confval) len
+  2  FROM   v$cell_config
+  3  ORDER  BY cellname, conftype;
+
+PROMPT -- 3b. ASM disk path format (expected: o/<cell ip1;ip2>/<griddisk name>)
+
+CELLNAME                                 CONFTYPE                    LEN
+---------------------------------------- -------------------- ----------
+192.168.11.11;192.168.11.12              CELL                       2085
+192.168.11.11;192.168.11.12              CELLDISKS                 12127
+192.168.11.11;192.168.11.12              GRIDDISKS                 15075
+192.168.11.11;192.168.11.12              IORM                        323
+192.168.11.11;192.168.11.12              LUNS                      10273
+192.168.11.11;192.168.11.12              PHYSICALDISKS             17794
+192.168.11.67;192.168.11.68              CELL                       2085
+192.168.11.67;192.168.11.68              CELLDISKS                 12127
+192.168.11.67;192.168.11.68              GRIDDISKS                 15075
+192.168.11.67;192.168.11.68              IORM                        323
+192.168.11.67;192.168.11.68              LUNS                      10273
+192.168.11.67;192.168.11.68              PHYSICALDISKS             17793
+192.168.11.69;192.168.11.70              CELL                       2085
+192.168.11.69;192.168.11.70              CELLDISKS                 12127
+192.168.11.69;192.168.11.70              GRIDDISKS                 15075
+192.168.11.69;192.168.11.70              IORM                        323
+192.168.11.69;192.168.11.70              LUNS                      10273
+192.168.11.69;192.168.11.70              PHYSICALDISKS             17794
+192.168.11.71;192.168.11.72              CELL                       2085
+192.168.11.71;192.168.11.72              CELLDISKS                 12127
+192.168.11.71;192.168.11.72              GRIDDISKS                 15075
+192.168.11.71;192.168.11.72              IORM                        323
+192.168.11.71;192.168.11.72              LUNS                      10273
+192.168.11.71;192.168.11.72              PHYSICALDISKS             17793
+192.168.11.7;192.168.11.8                CELL                       2083
+192.168.11.7;192.168.11.8                CELLDISKS                 12127
+192.168.11.7;192.168.11.8                GRIDDISKS                 15075
+192.168.11.7;192.168.11.8                IORM                        323
+192.168.11.7;192.168.11.8                LUNS                      10273
+192.168.11.7;192.168.11.8                PHYSICALDISKS             17804
+192.168.11.9;192.168.11.10               CELL                       2084
+192.168.11.9;192.168.11.10               CELLDISKS                 12127
+192.168.11.9;192.168.11.10               GRIDDISKS                 15075
+192.168.11.9;192.168.11.10               IORM                        323
+192.168.11.9;192.168.11.10               LUNS                      10273
+192.168.11.9;192.168.11.10               PHYSICALDISKS             17793
+
+36 rows selected.
+
+SQL> SQL> -- 3b. ASM disk path format (expected: o/<cell ip1;ip2>/<griddisk name>)
+SQL> SELECT path, name FROM v$asm_disk_stat WHERE ROWNUM <= 5;
+
+PATH                                                                   NAME
+---------------------------------------------------------------------- ------------------------------
+o/192.168.11.13;192.168.11.14/ARCHDATA_CD_00_eissidrceladm04           ARCHDATA_CD_00_EISSIDRCELADM04
+o/192.168.11.13;192.168.11.14/ARCHDATA_CD_01_eissidrceladm04           ARCHDATA_CD_01_EISSIDRCELADM04
+o/192.168.11.13;192.168.11.14/ARCHDATA_CD_02_eissidrceladm04           ARCHDATA_CD_02_EISSIDRCELADM04
+o/192.168.11.13;192.168.11.14/ARCHDATA_CD_03_eissidrceladm04           ARCHDATA_CD_03_EISSIDRCELADM04
+o/192.168.11.13;192.168.11.14/ARCHDATA_CD_04_eissidrceladm04           ARCHDATA_CD_04_EISSIDRCELADM04
+
+5 rows selected.
