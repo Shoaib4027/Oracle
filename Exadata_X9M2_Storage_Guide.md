@@ -33,8 +33,9 @@ Hardware figures are the standard X9M-2 HC specification; confirm on your own ce
 15. [IORM and flash cache sharing between databases](#15-iorm-and-flash-cache-sharing-between-databases)
 16. [Redundancy and disk failure handling](#16-redundancy-and-disk-failure-handling)
 17. [Our environment](#17-our-environment)
-18. [Command reference](#18-command-reference)
-19. [Glossary](#19-glossary)
+18. [LGWR and redo: how commits reach the cells](#18-lgwr-and-redo-how-commits-reach-the-cells)
+19. [Command reference](#19-command-reference)
+20. [Glossary](#20-glossary)
 
 ---
 
@@ -615,6 +616,8 @@ dcli -g cell_group -l root "cellcli -e list flashlog attributes name,size,status
 dcli -g cell_group -l root "cellcli -e list metriccurrent where objectType='FLASHLOG'"
 ```
 
+For the full LGWR write path, PMEM log, and an analysis of our own LGWR statistics, see [section 18](#18-lgwr-and-redo-how-commits-reach-the-cells).
+
 ---
 
 ## 11. PMEM: cache and log above flash
@@ -836,7 +839,191 @@ ARCHDATA sits on the WriteThrough cells. Its flash cache only accelerates reads,
 
 ---
 
-## 18. Command reference
+## 18. LGWR and redo: how commits reach the cells
+
+This section explains how LGWR writes redo on X9M-2, then works through a real Snapper sample of LGWR from `EISSIDRDB01` (instance 1, about 35 seconds, 23-Nov-2026).
+
+### 18.1 Our redo log layout
+
+| Item | Value |
+|---|---|
+| Groups per thread | 10 |
+| Members per group | 2: one in `+EISDATA`, one in `+EISRECO` |
+| Member size | 10 GB |
+| Diskgroup redundancy | HIGH for both (3 copies of every extent, on 3 different cells) |
+| Copies of each redo block | 2 members x 3 mirror copies = **6** |
+| Redo space per thread (logical) | 10 groups x 10 GB = 100 GB before the logs wrap |
+| Raw space per thread | 10 x 2 x 10 GB x 3 = **600 GB** (300 GB in each diskgroup) |
+
+EISDATA and EISRECO are grid disk slices of the **same physical disks** on the same cells. The second member protects against file-level and diskgroup-level problems (a deleted or corrupted member, a dismounted diskgroup). Protection against hardware failure comes from HIGH redundancy.
+
+### 18.2 How a commit is written, step by step
+
+1. A session changes data. Redo goes into the **log buffer** in the SGA, split into several **strands** so sessions do not block each other.
+2. The session commits. It posts LGWR and waits on **`log file sync`**.
+3. **Gather.** LGWR copies the redo out of the strands and builds the write. This is CPU work.
+4. **Schedule and issue.** LGWR sends one asynchronous write per log member through ASM. ASM turns each member write into one write per mirror copy. In our setup: 2 members x 3 copies = 6 writes to 6 cell targets, all at the same time.
+5. **On each cell**, the write is made durable in the fastest persistent place available:
+   - **PMEM log (X8M/X9M, called XRMEM on newer software).** The DB server's network card writes the redo straight into the cell's persistent memory using RDMA. CELLSRV and the cell CPU are not involved in the acknowledgement. This takes tens of microseconds.
+   - **Smart Flash Log** (when PMEM log is not used). CELLSRV writes the redo to the flash log and to the hard disk (through the RAID controller cache) **in parallel**, and acknowledges whichever finishes first. This hides the occasional slow disk write.
+6. **Finish.** LGWR waits until **all** copies have acknowledged. The slowest of the six decides the time. The part of this wait where LGWR is actually blocked shows as **`log file parallel write`**.
+7. **Post.** LGWR wakes the waiting sessions (or they find out by polling, with adaptive log file sync). Their commit is complete.
+8. **Later, in the background**, the cell writes the redo to the online redo log file on disk and frees the space in PMEM log or flash log.
+
+Important points:
+
+- PMEM log and flash log are **staging areas, not the redo log**. The redo always ends up in the online redo log files in ASM.
+- Both are persistent. If a cell crashes between step 5 and step 8, the cell replays the log when it starts, so acknowledged redo is never lost.
+- PMEM log and flash log are small (flash log is about 512 MB per cell by default) because they only hold redo until the disk write completes.
+- LGWR has worker processes (`LG00`-`LGnn`, scalable LGWR). At moderate load the main LGWR does all the work and the workers show `LGWR worker group idle`. Oracle switches between single and parallel mode on its own.
+
+### 18.3 Reading the LGWR Snapper output
+
+Sample length: `physical write total bytes` 1,706,112,000 at 48.22 MB/s gives about **35.4 seconds**.
+
+#### Volume and write sizes
+
+| Statistic | Value | Meaning |
+|---|---|---|
+| `redo writes` | 123,896 (3.5k per second) | Number of LGWR writes. 3,500 per second means a commit-heavy (OLTP) workload. |
+| `redo blocks written` | 1,666,197 | Redo blocks are 512 bytes: 1,666,197 x 512 = **853 MB**, about **24 MB/s** of redo. |
+| Average write size | 853 MB / 123,896 | **About 6.9 KB.** Small writes, typical of many small commits. |
+| `redo write size count (4KB)` | 71,910 | 58% of writes are 4 KB or less |
+| `redo write size count (8KB)` | 23,404 | together with 4 KB: 77% are 8 KB or less |
+| `redo write size count (16KB)` | 12,903 | |
+| `redo write size count (32KB)` | 12,231 | |
+| `redo write size count (128KB)` | 3,409 | |
+| `redo write size count (256KB/512KB/1024KB)` | 18 / 19 / 3 | Large writes are rare. All size buckets add up to 123,897, matching `redo writes`. |
+| `redo wastage` | 45,313,608 bytes | About 5% of redo is padding. Each write is rounded up to a whole 512-byte block, so many small commits produce some waste. Normal for this workload. |
+| `redo writes coalesced` | 62,083 | About half the writes combined redo from more than one strand into one I/O. |
+| `redo write active strands` | 188,790 | About 1.5 strands contributed to each write on average. |
+| `redo blocks checksummed by FG (exclusive)` | 864,149 | Sessions computed about half of the redo block checksums themselves, taking that CPU work off LGWR. |
+| `calls to kcmgas` | 124,332 | SCN allocation calls, roughly one per redo write. |
+
+#### How one redo write turns into many physical writes
+
+| Statistic | Value | Explanation |
+|---|---|---|
+| Redo generated | 853 MB | from `redo blocks written` |
+| `physical write total IO requests` | 247,796 | exactly **2 x** `redo writes`: one write per member |
+| `physical write total bytes` | 1,706,112,000 | **2 x** 853 MB: the EISDATA member plus the EISRECO member |
+| `cell physical IO interconnect bytes` | 5,118,925,824 (144.66 MB/s) | **3 x** 1,706 MB (HIGH redundancy sends each write to 3 cells) plus 589,824 bytes of reads |
+
+So **24 MB/s of redo becomes about 144 MB/s of writes on the storage network and cells.** The archiver adds more on top: it reads every filled log and writes the archive log (3 more copies if the archive destination is a HIGH redundancy diskgroup).
+
+#### Where the time goes in one redo write
+
+The `redo write ... time` statistics are cumulative from the start of each write. Dividing by `redo writes` gives:
+
+| Statistic | Cumulative per write | This phase alone | What happens |
+|---|---|---|---|
+| `redo write gather time` | 35.22 us | **35.2 us** | LGWR collects redo from the strands (CPU) |
+| `redo write schedule time` | 37.54 us | 2.3 us | Prepares the I/O |
+| `redo write issue time` | 37.61 us | 0.07 us | Hands the I/O to ASM and the cells |
+| `redo write finish time` | 72.98 us | **35.4 us** | **The I/O itself: 6 writes to PMEM/XRMEM log over RDMA, wait for all** |
+| `redo write total time` | 77.24 us | 4.3 us | Post-processing, posting the waiting sessions |
+
+`redo write time (usec)` 9,076,225 / 123,896 = **73.26 us** per write confirms this.
+
+About 35 us for six parallel writes is RDMA-to-persistent-memory speed. Flash would typically take 150-300 us and a hard disk milliseconds. **Storage is not the bottleneck: LGWR spends as long gathering redo from memory as it does waiting for the I/O.**
+
+#### Wait events and LGWR busy time
+
+| Event / statistic | Value | Meaning |
+|---|---|---|
+| `rdbms ipc message` | 73% of elapsed time, 141 us average | LGWR is idle about 73% of the time, waiting for work |
+| `background cpu time` | 295 ms per second | LGWR is on CPU about 30% of the time. Plenty of headroom. |
+| `log file parallel write` | 125,484 waits, **11.6 us** average, 4.1% of time | Only the part of each I/O where LGWR is actually blocked. Lower than the 35 us I/O phase because LGWR checks for completion by polling (`ASM IO for non-blocking poll`, 7.2 us average) and does other work meanwhile. |
+| `control file sequential read` | 5,945 waits, **20 us** average | Control file reads at RDMA speed |
+| `cell xrmem cache read hits` | 36 | Equals `physical read requests optimized` (36): every physical read LGWR did came from XRMEM (PMEM) cache |
+| `Disk file Mirror Read` | 12 waits, 168 us | Negligible |
+| `redo write broadcast ack time / count` | 4,721 us / 60 | RAC commit SCN broadcasts, about 79 us each, only 60 of them. Negligible. |
+| `LGWR worker group idle` (LG01-LG07) | 100% idle | Workers not needed at this load. Normal. |
+
+### 18.4 Log switch rate and capacity
+
+Based on the 24 MB/s sample. Check the real peak with the query below before changing anything.
+
+| Item | Calculation | Result |
+|---|---|---|
+| Time to fill one 10 GB member | 10,240 MB / 24 MB/s | about 7 minutes |
+| Log switches per hour | 60 / 7 | about 8-9 |
+| Time to cycle through all 10 groups | 10 x 7 min | about 70 minutes |
+
+- A common target is a log switch every 15-20 minutes at peak (3-4 per hour). At 24 MB/s we switch about every 7 minutes. Switches are cheap with 10 GB logs, so this is not a problem. If this rate is the normal peak, 20 GB members would bring it nearer the target.
+- The archiver has about 70 minutes to archive each log before LGWR needs it again. `log file switch (archiving needed)` would only appear if archiving stopped, for example because the archive destination filled up.
+- If this database is a Data Guard primary, standby redo logs should be the same size (10 GB) with the same number of groups per thread as the online logs (Oracle's current guidance).
+
+### 18.5 One member or two on HIGH redundancy
+
+Oracle's Exadata MAA guidance says one member per group is enough when redo is on a HIGH redundancy diskgroup, because ASM already keeps 3 copies on 3 cells. Check the current MAA paper for your version before changing anything.
+
+| | 2 members (current) | 1 member in EISDATA |
+|---|---|---|
+| Copies of each redo block | 6 | 3 |
+| Survives 2 cell failures | Yes | Yes |
+| Survives a deleted or corrupted member file | Yes | No |
+| Survives losing a whole diskgroup | Yes | No |
+| Cell writes per redo write | 6 | 3 |
+| Raw space per thread | 600 GB | 300 GB |
+
+**Decision: keep 2 members.** Redo writes complete in about 35 us and LGWR is about 30% busy, so the second member costs nothing noticeable. Revisit only if space is needed or commit latency becomes a problem.
+
+### 18.6 Commands
+
+```sql
+-- commit latency as sessions see it (should be close to LGWR's ~77 us plus wake-up time)
+SELECT event, total_waits,
+       ROUND(time_waited_micro/NULLIF(total_waits,0),1) avg_us
+FROM   v$system_event
+WHERE  event IN ('log file sync','log file parallel write');
+
+-- redo layout
+SELECT l.group#, l.thread#, l.members, l.bytes/1024/1024/1024 gb, l.status, f.member
+FROM   v$log l JOIN v$logfile f ON f.group# = l.group#
+ORDER  BY l.thread#, l.group#;
+
+-- log switches per hour, last 7 days, per thread
+SELECT TO_CHAR(first_time,'YYYY-MM-DD HH24') hour, thread#, COUNT(*) switches
+FROM   v$log_history
+WHERE  first_time > SYSDATE - 7
+GROUP  BY TO_CHAR(first_time,'YYYY-MM-DD HH24'), thread#
+ORDER  BY 1, 2;
+
+-- redo generated per hour (MB), last 7 days
+SELECT TO_CHAR(first_time,'YYYY-MM-DD HH24') hour, thread#,
+       ROUND(SUM(blocks*block_size)/1024/1024) redo_mb
+FROM   v$archived_log
+WHERE  first_time > SYSDATE - 7 AND dest_id = 1
+GROUP  BY TO_CHAR(first_time,'YYYY-MM-DD HH24'), thread#
+ORDER  BY 1, 2;
+
+-- LGWR statistics like the Snapper sample (Tanel Poder's snapper.sql)
+-- @snapper all 30 1 lgwr
+```
+
+```bash
+# flash log and PMEM/XRMEM log on each cell
+dcli -g cell_group -l root "cellcli -e list flashlog attributes name,size,status"
+dcli -g cell_group -l root "cellcli -e list pmemlog detail"      # newer software may name it xrmemlog
+
+# flash log race results and prevented outliers
+dcli -g cell_group -l root "cellcli -e list metriccurrent where name like 'FL_.*(FIRST|OUTLIERS)'"
+
+# metric names differ between versions; list what this version has
+cellcli -e list metricdefinition where objectType like '.*LOG'
+```
+
+| Flash log metric | Meaning |
+|---|---|
+| `FL_DISK_FIRST` | Redo writes where the hard disk finished first |
+| `FL_FLASH_FIRST` | Redo writes where flash finished first |
+| `FL_PREVENTED_OUTLIERS` | Slow disk writes that flash log hid from LGWR |
+| `FL_ACTUAL_OUTLIERS` | Slow writes flash log could not hide |
+
+---
+
+## 19. Command reference
 
 ### cellcli / dcli
 
@@ -889,7 +1076,7 @@ SELECT name, value FROM v$sysstat WHERE name LIKE 'cell%cache%hits';
 
 ---
 
-## 19. Glossary
+## 20. Glossary
 
 | Term | Meaning |
 |---|---|

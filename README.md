@@ -7,5 +7,5 @@ Performance troubleshooting scripts
 
 ## Exadata
 
-- [Exadata X9M-2 storage guide](Exadata_X9M2_Storage_Guide.md): every storage component, flash cache, WriteBack vs WriteThrough, PMEM, read/write paths
+- [Exadata X9M-2 storage guide](Exadata_X9M2_Storage_Guide.md): every storage component, flash cache, WriteBack vs WriteThrough, PMEM, read/write paths, LGWR redo writes and Flash/PMEM log
 - [`x9m2_disk.sql`](x9m2_disk.sql): ASM diskgroup to physical disk topology with LUN, flash and grid disk cache settings
