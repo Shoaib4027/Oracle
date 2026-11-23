@@ -46,6 +46,7 @@ COL pd_status      FOR A12
 COL pd_model       FOR A28
 COL lun_id         FOR A6
 COL raid           FOR A4
+COL lun_wcache     FOR A60
 COL failgroup      FOR A18
 COL cell_ips       FOR A30
 COL cellname       FOR A30
@@ -100,11 +101,13 @@ pd AS (
   WHERE  c.conftype = 'PHYSICALDISKS'
 ),
 lun AS (
-  SELECT c.cellname, TRIM(t.lun_id) lun_id, TRIM(t.lun_dev) lun_dev, TRIM(t.raid) raid
+  SELECT c.cellname, TRIM(t.lun_id) lun_id, TRIM(t.lun_dev) lun_dev, TRIM(t.raid) raid,
+         TRIM(REPLACE(t.wcache, '"')) wcache
   FROM   cfg c, XMLTABLE('/cli-output/lun' PASSING c.x
-           COLUMNS lun_id   VARCHAR2(64) PATH 'id',
-                   lun_dev  VARCHAR2(64) PATH 'deviceName',
-                   raid     VARCHAR2(10) PATH 'raidLevel') t
+           COLUMNS lun_id   VARCHAR2(64)  PATH 'id',
+                   lun_dev  VARCHAR2(64)  PATH 'deviceName',
+                   raid     VARCHAR2(10)  PATH 'raidLevel',
+                   wcache   VARCHAR2(200) PATH 'lunWriteCacheMode') t
   WHERE  c.conftype = 'LUNS'
 )
 SELECT adg.name                                    asm_diskgroup,
@@ -120,7 +123,8 @@ SELECT adg.name                                    asm_diskgroup,
        pd.slot,
        SUBSTR(pd.pd_status,1,12)                   pd_status,
        lun.lun_id,
-       lun.raid
+       lun.raid,
+       SUBSTR(lun.wcache,1,60)                     lun_wcache
 FROM   gd
 LEFT JOIN cell ON cell.cellname = gd.cellname
 LEFT JOIN v$asm_disk_stat ad       ON ad.path = 'o/' || gd.cellname || '/' || gd.gd_name
@@ -181,10 +185,12 @@ pd AS (
   WHERE  c.conftype = 'PHYSICALDISKS'
 ),
 lun AS (
-  SELECT c.cellname, TRIM(t.lun_id) lun_id, TRIM(t.lun_dev) lun_dev
+  SELECT c.cellname, TRIM(t.lun_id) lun_id, TRIM(t.lun_dev) lun_dev,
+         TRIM(REPLACE(t.wcache, '"')) wcache
   FROM   cfg c, XMLTABLE('/cli-output/lun' PASSING c.x
-           COLUMNS lun_id   VARCHAR2(64) PATH 'id',
-                   lun_dev  VARCHAR2(64) PATH 'deviceName') t
+           COLUMNS lun_id   VARCHAR2(64)  PATH 'id',
+                   lun_dev  VARCHAR2(64)  PATH 'deviceName',
+                   wcache   VARCHAR2(200) PATH 'lunWriteCacheMode') t
   WHERE  c.conftype = 'LUNS'
 )
 SELECT NVL(cell.cell_host, pd.cellname)   cell_host,
@@ -195,6 +201,7 @@ SELECT NVL(cell.cell_host, pd.cellname)   cell_host,
        SUBSTR(pd.pd_status,1,12)          pd_status,
        SUBSTR(pd.model,1,28)              pd_model,
        lun.lun_id,
+       SUBSTR(lun.wcache,1,60)            lun_wcache,
        cd.cd_name                         celldisk,
        cd.devname                         cd_dev,
        gd.gd_name                         griddisk,
