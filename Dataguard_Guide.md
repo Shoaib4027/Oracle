@@ -108,11 +108,17 @@ alter database flashback on;     -- online since 11gR2; on the standby, stop MRP
 | `fal_client` | `MIBDRCDB` | ✔ (obsolete in 12c+, harmless) |
 | `protection_mode` | MAXIMUM PERFORMANCE | ✔ Matches the primary (ASYNC) |
 | `db_block_checking` | `MEDIUM` | ✔ Matches the Oracle recommendation for a standby (the primary is `FALSE`, which is acceptable to avoid CPU cost) |
+| `standby_file_management` | `AUTO` | ✔ |
+| `log_archive_config` | `DG_CONFIG=(MIBDRCDB,MIBPRCDB,eisdcbkp,GGINTMIN,GGDRDB)` | ✔ Identical to the primary |
+| `log_archive_dest_2` | **empty** | ❌ **Reverse-direction destination not configured.** After a switchover the new primary (`MIBDRCDB`) would not ship redo to `MIBPRCDB`. Pre-configure it (deferred) as in §5.1 before any switchover. |
+| `standby_db_preserve_states` / `enabled_PDBs_on_standby` | `NONE` / `*` | Sessions are not preserved across a role change; all PDBs are replicated. |
 | `flashback_on` | **`NO`** | ❌ Off on **both** sites – see the action in the section above. After a failover or switchover-with-problems neither side can be reinstated by flashback. |
 
 Both sides are therefore already "pre-flipped" for a switchover as far as `fal_server` is concerned.
 
-Still to check on the standby **[VERIFY]**: `standby_file_management`, `log_archive_config`, `log_archive_dest_2` (reverse direction, §5.1), SRL/online log counts and sizes.
+**Action before the first switchover:** on `MIBDRCDB` set `log_archive_dest_2` to ship to `MIBPRCDB` with `log_archive_dest_state_2=DEFER` (§5.1), and decide which of `dest_3/4/5` (eisdcbkp, GoldenGate feeds) must also exist there (§5.6).
+
+Still to check on the standby **[VERIFY]**: `log_archive_dest_3/4/5`, SRL and online log counts and sizes (`v$standby_log`, `v$log`).
 
 ### 1.5 Scripts in the config file / repo
 
