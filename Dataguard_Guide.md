@@ -2,6 +2,9 @@
 
 Source of truth for the "as-is" section: `dataguard_configuration.txt` in this repo.
 Items marked **[VERIFY]** are not in that file and must be confirmed on the actual systems before the runbook is used.
+Values marked *(verified 2026-11-27)* were read from the primary (`MIBPRCDB`) via SQL*Plus. The standby (`MIBDRCDB`) has **not** been checked yet.
+
+**Contents:** 1 Current configuration · 2 Network parameters · 3 Lag troubleshooting · 4 Switchover vs failover · 5 Switchover runbook · 6 Failover runbook · 7 Pitfalls · 8 Quick queries · **9 Types of Data Guard** · **10 Redo transport attributes (REOPEN, MAX_FAILURE, …) and tuning**
 
 ---
 
@@ -17,7 +20,7 @@ Items marked **[VERIFY]** are not in that file and must be confirmed on the actu
 | Primary RAC | **6 instances / 6 redo threads** (v$log shows threads 1-6) |
 | Transport mode | **ASYNC** to MIBDRCDB, no compression, `AFFIRM NO` |
 | Protection mode | **[VERIFY]** `select protection_mode, protection_level from v$database;` (ASYNC transport ⇒ Maximum Performance) |
-| Broker | **[VERIFY]** `show parameter dg_broker_start` (you switch over manually, so likely FALSE) |
+| Broker | `dg_broker_start=FALSE` *(verified)* – no broker, all role changes are manual SQL |
 
 ```
  MIBPRCDB (6-node RAC)
@@ -64,23 +67,38 @@ Standby redo rule: **(online groups per thread + 1) × threads** – 66 = (10+1)
 
 **Observation:** 10 GB logs mean a log switch only every few minutes on a busy thread but every 15 min (archive_lag_target) on a quiet one. ASYNC transport ships redo continuously from the log buffer, so large logs do not by themselves delay the standby; they do make archive-based gap fills (a 10 GB file per sequence) slow.
 
-### 1.4 Parameters not in the file – check on both sites **[VERIFY]**
+### 1.4 Additional parameters (verified on primary 2026-11-27)
+
+| Parameter | Value | Assessment |
+|---|---|---|
+| `db_unique_name` | `MIBPRCDB` | ✔ |
+| `fal_server` | `MIBDRCDB` | ✔ Already points at the standby. Meaning: when this DB is a *standby*, it fetches missing logs from MIBDRCDB. So the switchover "pre-flip" is already done on this side. |
+| `fal_client` | `MIBPRCDB` | Obsolete since 12c (ignored); harmless. |
+| `standby_file_management` | `AUTO` | ✔ New datafiles on primary are created on the standby automatically. |
+| `db_file_name_convert`, `log_file_name_convert`, `pdb_file_name_convert` | *(empty)* | ✔ OK when both sites use OMF/ASM (+DATA / +RECO). If paths differ, they must be set. |
+| `dg_broker_start` | `FALSE` | Manual switchover/failover. No Fast-Start Failover possible without the broker. |
+| `db_lost_write_protect` | `TYPICAL` | ✔ Standby detects lost writes on the primary. |
+| `db_block_checking` | `FALSE` | ⚠ Oracle recommends `MEDIUM`/`FULL` on the **standby** (cheap there, catches in-memory corruption before it is applied); on the primary it costs CPU – test first. |
+| `db_flashback_retention_target` | `1440` (min = 24 h) | Set, but ineffective because flashback is off. |
+| `flashback_on` | **`NO`** | ❌ See below. |
+| `force_logging` | `YES` | ✔ No NOLOGGING holes on the standby. |
+
+**Action needed – flashback is off on the primary.** Consequences:
+
+* After a **failover** the old primary cannot be reinstated with `FLASHBACK DATABASE`; it must be rebuilt from RMAN (hours for a large DB).
+* A **snapshot standby** (§9.3) needs flashback on the standby.
+* A guaranteed restore point (§5.1) still works without flashback being on, but it keeps all flashback logs from that point and consumes FRA space.
+
+Recommended: enable on both sites, size the FRA for 24 h of flashback logs (roughly ≈ redo generated per day + changed blocks):
 
 ```sql
-show parameter fal_server
-show parameter fal_client
-show parameter standby_file_management     -- should be AUTO
-show parameter db_file_name_convert
-show parameter log_file_name_convert
-show parameter db_unique_name
-show parameter dg_broker_start
-show parameter db_lost_write_protect       -- TYPICAL recommended
-show parameter db_block_checking
-show parameter db_flashback_retention_target
-select flashback_on, force_logging from v$database;   -- both should be YES (needed for reinstate / no nologging holes)
+select flashback_on from v$database;
+show parameter db_recovery_file_dest_size
+select * from v$recovery_file_dest;
+alter database flashback on;     -- online since 11gR2; on the standby, stop MRP first on versions < 18c
 ```
 
-On the standby: `fal_server=MIBPRCDB`; after a switchover each side's `fal_server` must point to the **other** side (set both in advance, §5).
+Still to check **on the standby** **[VERIFY]**: `fal_server` (should be `MIBPRCDB`), `standby_file_management`, `flashback_on`, `db_block_checking`, `log_archive_config`, `dest_2` (reverse direction), SRL count/size, Oracle version.
 
 ### 1.5 Scripts in the config file / repo
 
@@ -311,8 +329,7 @@ Prepare the **reverse direction in advance** (so the new primary ships to the ol
 alter system set log_archive_dest_2='service=MIBPRCDB async valid_for=(online_logfiles,primary_role) net_timeout=30 reopen=60 max_failure=10 db_unique_name=MIBPRCDB' scope=both sid='*';
 alter system set log_archive_dest_state_2=defer scope=both sid='*';   -- enable after the switch
 alter system set fal_server='MIBPRCDB' scope=both sid='*';
--- On P: fal_server must point to the future primary
-alter system set fal_server='MIBDRCDB' scope=both sid='*';
+-- On P: fal_server must point to the future primary (already MIBDRCDB - verified, nothing to do)
 ```
 
 On both: `log_archive_config` already lists both names ✔.
@@ -430,7 +447,7 @@ alter database open;
 After the failover:
 
 1. Open the app services on the new primary; check GG, backups, other destinations (§5.6).
-2. When the old primary is repaired, **do not open it** – it would diverge. Reinstate it:
+2. When the old primary is repaired, **do not open it**. (Reinstate needs `flashback_on=YES` on the old primary *before* the failure – currently **NO**, see §1.4; otherwise go to the rebuild option below.) – it would diverge. Reinstate it:
    ```sql
    -- on the new primary: find the SCN where the standby became primary
    select standby_became_primary_scn from v$database;
@@ -479,3 +496,193 @@ select thread#, sequence#, first_time, applied from v$archived_log where dest_id
 -- Standby redo logs
 select group#, thread#, sequence#, status, bytes/1024/1024/1024 gb from v$standby_log;
 ```
+
+---
+
+## 9. Types of Data Guard
+
+### 9.1 How Data Guard works (common to all types)
+
+```
+ PRIMARY                                     STANDBY
+ user commit -> log buffer -> LGWR -> online redo (ORL)
+                               |
+                               +--> LNS/NSSn --- network ---> RFS --> standby redo (SRL)
+                                                                         |
+                    ARCn archives ORL locally                            +--> ARCn archives SRL
+                    (also ships old logs / fills gaps)                   +--> MRP/PRnn  (redo apply)
+                                                                               or LSP (SQL apply)
+```
+
+1. Every change is written as redo by **LGWR** on each RAC thread.
+2. The **LNS/NSS** process reads the redo (from the log buffer; from the online log if the buffer has wrapped) and sends it over Oracle Net.
+3. **RFS** on the standby writes it into **standby redo logs** (SRLs) – that is why SRLs are mandatory for real-time apply.
+4. The **apply** engine (MRP for physical, LSP for logical) applies redo continuously ("real-time apply") or after the log is archived.
+5. **ARCn** processes archive logs locally and resolve **gaps** (via `fal_server`) if redo was missed (network outage, destination deferred).
+
+### 9.2 Standby types
+
+| Type | How it is kept in sync | Open mode | Typical use | Notes |
+|---|---|---|---|---|
+| **Physical standby** | **Redo Apply** (MRP): block-for-block identical to primary | MOUNTED, or `READ ONLY` | DR, switchover/failover, offload backups | **This is what `MIBDRCDB` is.** Simplest and most robust; supports every datatype. |
+| **Active Data Guard** (physical standby + option) | Redo Apply **while open read-only** (real-time query) | `READ ONLY WITH APPLY` | Reporting/queries on the standby, automatic block repair, offloaded backups | Needs the **Active Data Guard licence** – confirm before enabling. Adds Far Sync, real-time cascade, DML redirection (19c). |
+| **Logical standby** | **SQL Apply** (LSP): redo is mined and re-executed as SQL | Open read/write (apply tables read-only) | Rolling upgrades, reporting with extra indexes/objects | Datatype/object restrictions (`dba_logstdby_unsupported`); not block-identical; heavier to run. Largely superseded by GoldenGate / ADG for new designs. |
+| **Snapshot standby** | Physical standby temporarily converted to **read/write**; redo still **received** but **not applied** | Read/write | Testing (RAT/patch/app tests) on a copy of production | Uses flashback (restore point) to convert back; all test changes are discarded and the accumulated redo then applied. **Needs `flashback_on` and FRA space**; during the snapshot period, failover time grows with the backlog and no switchover is possible. |
+| **Far Sync instance** | Lightweight "redo relay": controlfile + SRLs only, no datafiles | MOUNTED | Zero-data-loss protection to a standby that is too far for SYNC | Primary ships **SYNC** (low latency) to the Far Sync, which forwards **ASYNC** to the distant standby. Needs ADG licence. |
+| **Cascaded standby** | Receives redo from *another standby*, not from the primary | as above | Reduce primary network/CPU load with several standbys | Intermediate standby needs `log_archive_dest_n ... valid_for=(standby_logfiles,standby_role)`. |
+
+Is GoldenGate part of Data Guard? **No.** `dest_4` (`GG_DB`) and `dest_5` (`GGDRDB`) just copy archive logs to a directory (`/gg_foreign_archives`) for GoldenGate to mine. They are in `DG_CONFIG` only so the redo transport service is allowed to send to them. They are not standbys and are never switched over.
+
+### 9.3 Switch to a snapshot standby (for completeness)
+
+```sql
+-- on the standby, with flashback on
+alter database recover managed standby database cancel;
+alter database convert to snapshot standby;
+alter database open;
+-- test ...
+shutdown immediate
+startup mount
+alter database convert to physical standby;
+shutdown immediate
+startup mount
+alter database recover managed standby database using current logfile disconnect;
+```
+
+### 9.4 Protection modes and transport modes
+
+Protection mode is the **guarantee**; transport mode is the **mechanism**.
+
+| Protection mode | Transport required | Primary behaviour if standby unreachable | Data loss on failover | Performance impact |
+|---|---|---|---|---|
+| **Maximum Performance** (*default; yours*) | `ASYNC` (or ARCH) | Continues unaffected | Possible – up to the current transport lag | None |
+| **Maximum Availability** | `SYNC AFFIRM` (or `FASTSYNC` = SYNC NOAFFIRM, 12c+) | Waits up to `net_timeout`, then **continues** (degrades to async-like) and resyncs later | Zero while synchronised | Commit waits for a network round-trip (+ standby disk write with AFFIRM) |
+| **Maximum Protection** | `SYNC AFFIRM` | **Shuts down the primary** to avoid divergence | Zero | As above, plus availability risk – use with ≥2 standbys |
+
+* `ASYNC` – LNS sends redo in the background; commit does not wait.
+* `SYNC` – commit does not return until the standby has acknowledged receipt.
+* `AFFIRM` – ack only after the redo is written to the **standby redo log on disk**; `NOAFFIRM` – ack once received into memory (faster, tiny risk window). `FASTSYNC` = `SYNC NOAFFIRM`.
+
+Changing the mode (needs `SYNC` first):
+
+```sql
+alter system set log_archive_dest_2='service=MIBDRCDB sync affirm net_timeout=15 reopen=15 max_failure=0 valid_for=(online_logfiles,primary_role) db_unique_name=MIBDRCDB' scope=both sid='*';
+alter database set standby database to maximize availability;   -- or PROTECTION / PERFORMANCE
+select protection_mode, protection_level from v$database;
+```
+
+Go SYNC only if the measured RTT between sites is low (rule of thumb: ≤ 5–10 ms) – test the commit-latency impact in AWR (`log file sync`) first. With 6 RAC nodes and a WAN link ASYNC is usually the right choice, optionally with Far Sync if zero data loss is a requirement.
+
+**[VERIFY]** current mode: `select protection_mode, protection_level from v$database;` (expected: MAXIMUM PERFORMANCE).
+
+---
+
+## 10. Redo transport attributes (REOPEN, MAX_FAILURE, …) and how to tune with them
+
+All of these are attributes inside `LOG_ARCHIVE_DEST_n`. Your current DR destination:
+
+```
+service=MIBDRCDB async valid_for=(online_logfiles,primary_role)
+net_timeout=30 reopen=60 max_failure=10 db_unique_name=MIBDRCDB
+```
+
+### 10.1 What each attribute does
+
+| Attribute | Meaning | Default | Applies to |
+|---|---|---|---|
+| `SERVICE` | TNS alias / connect descriptor of the remote DB | – | |
+| `SYNC` / `ASYNC` | Transport mode (§9.4) | ASYNC (12c+, LGWR) | |
+| `AFFIRM` / `NOAFFIRM` | Wait for standby *disk write* or not | NOAFFIRM for ASYNC; AFFIRM for SYNC | SYNC mostly |
+| `NET_TIMEOUT` | Seconds LGWR waits for the standby's ack before it **declares the network connection failed** and drops it | 30 | **SYNC** (little practical effect for ASYNC) |
+| `REOPEN` | **Seconds to wait before retrying** a destination after an error | 300 | all |
+| `MAX_FAILURE` | **Number of consecutive failed retries** allowed before Oracle **stops trying** (destination → ERROR). Counter resets on a successful connect | 0 = unlimited | all |
+| `DELAY` | Minutes the standby waits before *applying* received redo (redo is still shipped immediately) | 0 | apply side; anti-logical-corruption buffer. Avoid unless required – it adds apply lag by design. |
+| `COMPRESSION` | `ENABLE` compresses redo on the wire | DISABLE | needs Advanced Compression licence; useful when network-bound |
+| `VALID_FOR=(logfile_type, role)` | When this destination is active (e.g. `online_logfiles,primary_role`) | `all_logfiles,all_roles` | |
+| `DB_UNIQUE_NAME` | Target's unique name; must be in `log_archive_config` | – | |
+| `ALTERNATE` | Fallback destination if this one fails | – | |
+| `MAX_CONNECTIONS` | Parallel ARCH connections for archive-log transfer (gap/ARCH dests) | 1 | ARCH only (your GG dests use 3) |
+| `NOREGISTER` | Don't register the file in the remote control file | – | GG feeds |
+| `TEMPLATE` | File-name pattern on the remote side | – | GG feeds |
+| `ENCRYPTION` etc. | TLS/ network encryption via sqlnet.ora, not here | | see `tls_in_prod.txt` |
+
+### 10.2 REOPEN and MAX_FAILURE together – what actually happens
+
+When a connection to the standby fails (listener down, network drop, standby restart):
+
+```
+t=0   error  -> failure #1
+t=REOPEN     retry  -> if it fails: failure #2
+t=2*REOPEN   retry  -> failure #3
+...
+failure #MAX_FAILURE reached -> destination goes to ERROR and is NOT retried automatically
+                                until reset (defer/enable) – redo accumulates as a gap
+```
+
+**Time Oracle keeps trying = `REOPEN × MAX_FAILURE`.**
+
+| Setting | Retry window | Comment |
+|---|---|---|
+| `reopen=60 max_failure=10` (**current**) | **≈ 10 minutes** | Any outage longer than ~10 min (network maintenance, standby patching, reboot) leaves the destination permanently in ERROR until someone re-enables it. Lag then grows silently. |
+| `reopen=300` (default), no `max_failure` | unlimited, one attempt per 5 min | Safe, but up to 5 min to notice the standby is back. |
+| `reopen=15 max_failure=0` | unlimited, one attempt per 15 s | **Recommended for ASYNC**: reconnects within 15 s of the standby/network returning and never gives up. |
+| `reopen=5 max_failure=3` | 15 s | Only appropriate in Max Availability (SYNC), when you want a flapping standby to stop slowing commits quickly (and accept a manual re-enable). |
+
+**How to use them to improve redo transport**
+
+* **Lower `REOPEN` (e.g. 15–30 s)** → shorter blind period after a blip. Don't go below ≈5 s: with 6 RAC instances each retrying you could hammer the standby listener/SCAN and the alert log fills with ORA-12xxx noise.
+* **Set `MAX_FAILURE=0`** (or remove it) for ASYNC so the destination is never abandoned; **detect** problems by monitoring `gv$archive_dest.status/error`, not by letting Oracle give up. If you must keep a limit, multiply it up so that `REOPEN × MAX_FAILURE` exceeds your longest planned maintenance window (e.g. `reopen=30 max_failure=240` = 2 h) and add an alert on `status='ERROR'`.
+* **Use a small `MAX_FAILURE` only in SYNC modes**: with `SYNC` and a flaky standby each failed connection/timeout stalls commits on the primary. A low `MAX_FAILURE` + short `NET_TIMEOUT` makes the primary drop the standby fast and keep running; the gap is fixed later by FAL.
+* **`NET_TIMEOUT` (SYNC only)**: too low (<10 s) → false disconnects on a network hiccup, repeated reconnect cycles; too high (>30 s) → commits freeze for that long when the network dies. 10–15 s is a common SYNC value; for ASYNC it can be left alone.
+* **Never edit these on only one RAC instance** – use `sid='*'`.
+
+Proposed replacement for your ASYNC DR destination (test on non-prod first; the string is changed online, active sessions reconnect):
+
+```sql
+alter system set log_archive_dest_2=
+ 'service=MIBDRCDB async valid_for=(online_logfiles,primary_role)
+  reopen=15 max_failure=0 db_unique_name=MIBDRCDB'
+ scope=both sid='*';
+-- (net_timeout removed: not relevant to ASYNC; add compression=enable only if the link is the bottleneck and licensed)
+```
+
+### 10.3 Recovering a destination that has hit MAX_FAILURE
+
+```sql
+-- primary: see state
+select inst_id, dest_id, status, error, gap_status from gv$archive_dest_status where dest_id=2;
+-- reset it
+alter system set log_archive_dest_state_2=defer  scope=memory sid='*';
+alter system set log_archive_dest_state_2=enable scope=memory sid='*';
+-- standby: the gap is then filled automatically via fal_server / ARCH
+select * from v$archive_gap;
+```
+
+### 10.4 Other settings that improve transport
+
+| Lever | Why | How |
+|---|---|---|
+| Network buffers / SDU | Use the available bandwidth over distance | §2 |
+| `COMPRESSION=ENABLE` | Fewer bytes on the wire if link-bound | Licensed option; costs CPU on primary |
+| Larger `log_buffer` | ASYNC LNS reads from memory; if the buffer wraps it falls back to reading the (slower) online log | `alter system set log_buffer=...  scope=spfile` and restart; check `v$sysstat` for `redo buffer allocation retries` and wait `log buffer space` |
+| `log_archive_max_processes` | Gap catch-up speed | 16 (already) |
+| `MAX_CONNECTIONS` (ARCH dests only) | Parallel streams for large archive transfers | already 3 on the GG dests |
+| SRLs on standby | Real-time transport and apply | already correct (66) |
+| Separate/dedicated network (e.g. private replication VLAN) | Don't compete with application traffic | OS routing + TNS alias on that interface |
+| Far Sync | Short-hop SYNC + long-haul ASYNC | §9.2 |
+
+### 10.5 Monitoring queries tied to these parameters
+
+```sql
+-- Has the destination been given up on? (primary)
+select inst_id, dest_id, status, error, failure_count, max_failure, reopen_secs, fail_date, fail_sequence
+from gv$archive_dest where dest_id=2;
+
+-- How long do redo shipments take (ASYNC, 12c+)
+select * from v$redo_dest_resp_histogram where dest_id=2;
+
+-- Current lag
+select name, value, time_computed from v$dataguard_stats where name in ('transport lag','apply lag');
+```
+
+`failure_count` and `max_failure` in `gv$archive_dest` show how close a destination is to giving up (`failure_count` approaching `max_failure` ⇒ act now).
