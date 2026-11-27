@@ -1,0 +1,301 @@
+--data guard configuration----
+------------------------------
+SQL> show parameter archive
+
+NAME                                 TYPE        VALUE
+------------------------------------ ----------- ------------------------------
+archive_lag_target                   integer     900
+log_archive_config                   string      DG_CONFIG=(MIBDRCDB,MIBPRCDB,e
+                                                 isdcbkp,GGINTMIN,GGDRDB)
+log_archive_dest                     string
+log_archive_dest_1                   string      location=use_db_recovery_file_
+                                                 dest valid_for=(all_logfiles,a
+                                                 ll_roles) db_unique_name=MIBPR
+                                                 CDB
+log_archive_dest_10                  string
+log_archive_dest_11                  string
+log_archive_dest_12                  string
+log_archive_dest_13                  string
+log_archive_dest_14                  string
+log_archive_dest_15                  string
+log_archive_dest_16                  string
+log_archive_dest_17                  string
+log_archive_dest_18                  string
+log_archive_dest_19                  string
+log_archive_dest_2                   string      service=MIBDRCDB async valid_f
+                                                 or=(online_logfiles,primary_ro
+                                                 le) net_timeout=30 reopen=60 m
+                                                 ax_failure=10 db_unique_name=M
+                                                 IBDRCDB
+log_archive_dest_20                  string
+log_archive_dest_21                  string
+log_archive_dest_22                  string
+log_archive_dest_23                  string
+log_archive_dest_24                  string
+log_archive_dest_25                  string
+log_archive_dest_26                  string
+log_archive_dest_27                  string
+log_archive_dest_28                  string
+log_archive_dest_29                  string
+log_archive_dest_3                   string      SERVICE=eisdczdingest-scan1:17
+                                                 86/eisdcbkp:dedicated ASYNC VA
+                                                 LID_FOR=(ALL_LOGFILES,ALL_ROLE
+                                                 S) DB_UNIQUE_NAME=eisdcbkp
+log_archive_dest_30                  string
+log_archive_dest_31                  string
+log_archive_dest_4                   string      SERVICE=GG_DB ASYNC NOREGISTER
+                                                  ARCH MAX_CONNECTIONS=3 net_ti
+                                                 meout=30 reopen=60 max_failure
+                                                 =10 VALID_FOR=(ONLINE_LOGFILES
+                                                 ,PRIMARY_ROLE) TEMPLATE=/gg_fo
+                                                 reign_archives/miib_arch_%t_%s
+                                                 _%r.log DB_UNIQUE_NAME=GGINTMI
+                                                 N
+log_archive_dest_5                   string      SERVICE=GGDRDB ASYNC NOREGISTE
+                                                 R ARCH VALID_FOR=(ONLINE_LOGFI
+                                                 LE,PRIMARY_ROLE) TEMPLATE=/gg_
+                                                 foreign_archives/miib_arch_pr_
+                                                 %t_%s_%r.log DB_UNIQUE_NAME=GG
+                                                 DRDB
+log_archive_dest_6                   string
+log_archive_dest_7                   string
+log_archive_dest_8                   string
+log_archive_dest_9                   string
+log_archive_dest_state_1             string      ENABLE
+log_archive_dest_state_10            string      enable
+log_archive_dest_state_11            string      enable
+log_archive_dest_state_12            string      enable
+log_archive_dest_state_13            string      enable
+log_archive_dest_state_14            string      enable
+log_archive_dest_state_15            string      enable
+log_archive_dest_state_16            string      enable
+log_archive_dest_state_17            string      enable
+log_archive_dest_state_18            string      enable
+log_archive_dest_state_19            string      enable
+log_archive_dest_state_2             string      ENABLE
+log_archive_dest_state_20            string      enable
+log_archive_dest_state_21            string      enable
+log_archive_dest_state_22            string      enable
+log_archive_dest_state_23            string      enable
+log_archive_dest_state_24            string      enable
+log_archive_dest_state_25            string      enable
+log_archive_dest_state_26            string      enable
+log_archive_dest_state_27            string      enable
+log_archive_dest_state_28            string      enable
+log_archive_dest_state_29            string      enable
+log_archive_dest_state_3             string      DEFER
+log_archive_dest_state_30            string      enable
+log_archive_dest_state_31            string      enable
+log_archive_dest_state_4             string      ENABLE
+log_archive_dest_state_5             string      DEFER
+log_archive_dest_state_6             string      enable
+log_archive_dest_state_7             string      enable
+log_archive_dest_state_8             string      enable
+log_archive_dest_state_9             string      enable
+log_archive_duplex_dest              string
+log_archive_format                   string      %t_%s_%r.arc
+log_archive_max_processes            integer     16
+log_archive_min_succeed_dest         integer     1
+log_archive_start                    boolean     FALSE
+log_archive_trace                    integer     0
+------------------------------------------------------------------------
+-------------------detination configuration----------------------------------
+SQL> @er 2
+old  13:  from gv$archive_dest where dest_id in (&1)
+new  13:  from gv$archive_dest where dest_id in (2)
+
+   INST_ID    DEST_ID Error                                              COMPRES AFFIRM     Target          LOG_SEQUENCE AFFIRM     STATUS    VALID_TYPE      DB_UNIQUE_ Logfile naming convention on standby
+---------- ---------- -------------------------------------------------- ------- ---------- --------------- ------------ ---------- --------- --------------- ---------- ---------------------------------------------
+         1          2                                                    DISABLE NO         STANDBY               269123 NO         VALID     ONLINE_LOGFILE  MIBDRCDB  NONE
+         2          2                                                    DISABLE NO         STANDBY               270827 NO         VALID     ONLINE_LOGFILE  MIBDRCDB  NONE
+         3          2                                                    DISABLE NO         STANDBY               240591 NO         VALID     ONLINE_LOGFILE  MIBDRCDB  NONE
+         4          2                                                    DISABLE NO         STANDBY               237713 NO         VALID     ONLINE_LOGFILE  MIBDRCDB  NONE
+         5          2                                                    DISABLE NO         STANDBY               218223 NO         VALID     ONLINE_LOGFILE  MIBDRCDB  NONE
+         6          2                                                    DISABLE NO         STANDBY               209205 NO         VALID     ONLINE_LOGFILE  MIBDRCDB  NONE
+
+6 rows selected.
+
+SQL> @er 4
+old  13:  from gv$archive_dest where dest_id in (&1)
+new  13:  from gv$archive_dest where dest_id in (4)
+
+   INST_ID    DEST_ID Error                                              COMPRES AFFIRM     Target          LOG_SEQUENCE AFFIRM     STATUS    VALID_TYPE      DB_UNIQUE_ Logfile naming convention on standby
+---------- ---------- -------------------------------------------------- ------- ---------- --------------- ------------ ---------- --------- --------------- ---------- ---------------------------------------------
+         1          4                                                    DISABLE NO         STANDBY                    0 NO         VALID     ONLINE_LOGFILE  GGINTMIN  /gg_foreign_archives/miib_arch_%t_%s_%r.log
+         2          4                                                    DISABLE NO         STANDBY                    0 NO         VALID     ONLINE_LOGFILE  GGINTMIN  /gg_foreign_archives/miib_arch_%t_%s_%r.log
+         3          4                                                    DISABLE NO         STANDBY                    0 NO         VALID     ONLINE_LOGFILE  GGINTMIN  /gg_foreign_archives/miib_arch_%t_%s_%r.log
+         4          4                                                    DISABLE NO         STANDBY                    0 NO         VALID     ONLINE_LOGFILE  GGINTMIN  /gg_foreign_archives/miib_arch_%t_%s_%r.log
+         5          4                                                    DISABLE NO         STANDBY                    0 NO         VALID     ONLINE_LOGFILE  GGINTMIN  /gg_foreign_archives/miib_arch_%t_%s_%r.log
+         6          4                                                    DISABLE NO         STANDBY                    0 NO         VALID     ONLINE_LOGFILE  GGINTMIN  /gg_foreign_archives/miib_arch_%t_%s_%r.log
+
+6 rows selected.
+
+
+----er.sql contains---------------
+SQL> !cat er.sql
+
+set lines 250
+
+col error for a50 head "Error"
+col COMPRESSION head  "COMPRESSED"
+col DB_UNIQUE_NAME for a10
+col REMOTE_TEMPLATE for a45 head "Logfile naming convention on standby"
+col TARGET for a15 head "Target"
+col AFFIRM for a10
+select  inst_id
+       ,dest_id
+       ,error
+       ,COMPRESSION
+       ,AFFIRM
+       ,TARGET
+       ,LOG_SEQUENCE
+       ,AFFIRM
+       ,STATUS
+       ,VALID_TYPE
+       ,DB_UNIQUE_NAME
+       ,REMOTE_TEMPLATE
+ from gv$archive_dest where dest_id in (&1)
+/
+----------------Redo logs ---------------------------------
+SQL> select * from v$log;
+
+    GROUP#    THREAD#  SEQUENCE#      BYTES  BLOCKSIZE    MEMBERS ARC STATUS           FIRST_CHANGE# FIRST_TIM NEXT_CHANGE# NEXT_TIME     CON_ID
+---------- ---------- ---------- ---------- ---------- ---------- --- ---------------- ------------- --------- ------------ --------- ----------
+         1          1     269120 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+         2          1     269122 1.0737E+10        512          2 YES ACTIVE              3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+         3          1     269116 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+         4          1     269123 1.0737E+10        512          2 NO  CURRENT             3.9514E+12 27-NOV-26   9.2954E+18                    0
+         5          1     269117 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+         6          1     269114 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+         7          1     269118 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+         8          1     269119 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+         9          1     269121 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        10          1     269115 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        11          2     270820 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        12          2     270823 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        13          2     270824 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        14          2     270827 1.0737E+10        512          2 NO  CURRENT             3.9514E+12 27-NOV-26   9.2954E+18                    0
+        15          2     270821 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        16          2     270822 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        17          2     270825 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        18          2     270826 1.0737E+10        512          2 YES ACTIVE              3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        19          2     270818 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        20          2     270819 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        21          3     240586 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        22          3     240587 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        23          3     240588 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        24          3     240589 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        25          3     240590 1.0737E+10        512          2 YES ACTIVE              3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        26          3     240591 1.0737E+10        512          2 NO  CURRENT             3.9514E+12 27-NOV-26   9.2954E+18                    0
+        27          3     240582 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        28          3     240583 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        29          3     240584 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        30          3     240585 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        31          4     237706 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        32          4     237707 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        33          4     237708 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        34          4     237709 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        35          4     237710 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        36          4     237711 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        37          4     237712 1.0737E+10        512          2 YES ACTIVE              3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        38          4     237713 1.0737E+10        512          2 NO  CURRENT             3.9514E+12 27-NOV-26   9.2954E+18                    0
+        39          4     237704 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        40          4     237705 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        41          5     218217 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        42          5     218218 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        43          5     218219 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        44          5     218220 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        45          5     218221 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        46          5     218222 1.0737E+10        512          2 YES ACTIVE              3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        47          5     218223 1.0737E+10        512          2 NO  CURRENT             3.9514E+12 27-NOV-26   9.2954E+18                    0
+        48          5     218214 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        49          5     218215 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        50          5     218216 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        51          6     209205 1.0737E+10        512          2 NO  CURRENT             3.9514E+12 27-NOV-26   9.2954E+18                    0
+        52          6     209196 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        53          6     209197 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        54          6     209198 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9513E+12 27-NOV-26          0
+        55          6     209199 1.0737E+10        512          2 YES INACTIVE            3.9513E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        56          6     209200 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        57          6     209201 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        58          6     209202 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        59          6     209203 1.0737E+10        512          2 YES INACTIVE            3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+        60          6     209204 1.0737E+10        512          2 YES ACTIVE              3.9514E+12 27-NOV-26   3.9514E+12 27-NOV-26          0
+
+60 rows selected.
+--------standby redo------------------------
+-----------------------------------------------SQL> select * from v$standby_log;
+
+    GROUP# DBID                                        THREAD#  SEQUENCE#      BYTES  BLOCKSIZE       USED ARC STATUS     FIRST_CHANGE# FIRST_TIM NEXT_CHANGE# NEXT_TIME LAST_CHANGE# LAST_TIME     CON_ID
+---------- ---------------------------------------- ---------- ---------- ---------- ---------- ---------- --- ---------- ------------- --------- ------------ --------- ------------ --------- ----------
+        61 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        62 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        63 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        64 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        65 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        66 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        67 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        68 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        69 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        70 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        71 UNASSIGNED                                        1          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        72 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        73 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        74 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        75 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        76 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        77 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        78 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        79 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        80 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        81 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        82 UNASSIGNED                                        2          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        83 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        84 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        85 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        86 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        87 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        88 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        89 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        90 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        91 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        92 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        93 UNASSIGNED                                        3          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        94 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        95 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        96 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        97 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        98 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+        99 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       100 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       101 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       102 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       103 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       104 UNASSIGNED                                        4          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       105 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       106 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       107 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       108 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       109 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       110 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       111 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       112 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       113 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       114 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       115 UNASSIGNED                                        5          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       116 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       117 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       118 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       119 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       120 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       121 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       122 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       123 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       124 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       125 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+       126 UNASSIGNED                                        6          0 1.0737E+10        512          0 YES UNASSIGNED                                               0
+
+66 rows selected.
+
+SQL>
+
