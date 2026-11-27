@@ -19,7 +19,9 @@ Values marked *(verified 2026-11-27)* were read from the primary (`MIBPRCDB`) vi
 | Other DG_CONFIG members | `eisdcbkp` (dest 3, remote backup/standby via SCAN), `GGINTMIN` (dest 4), `GGDRDB` (dest 5) – the GG* entries are GoldenGate foreign-archive targets, not standbys |
 | Primary RAC | **6 instances / 6 redo threads** (v$log shows threads 1-6) |
 | Transport mode | **ASYNC** to MIBDRCDB, no compression, `AFFIRM NO` |
-| Protection mode | **[VERIFY]** `select protection_mode, protection_level from v$database;` (ASYNC transport ⇒ Maximum Performance) |
+| Protection mode | **MAXIMUM PERFORMANCE** *(verified on standby, all 6 instances)* |
+| Oracle version | 19c (19.0.0.0, `/u01/app/oracle/product/19.0.0.0/dbhome_1`) *(from tnsping banner on the standby)* – the 12.2+ commands in §5/§6 are available |
+| Standby | 6-instance RAC (`gv$database` returns 6 rows for `MIBDRCDB`) |
 | Broker | `dg_broker_start=FALSE` *(verified)* – no broker, all role changes are manual SQL |
 
 ```
@@ -98,7 +100,17 @@ select * from v$recovery_file_dest;
 alter database flashback on;     -- online since 11gR2; on the standby, stop MRP first on versions < 18c
 ```
 
-Still to check **on the standby** **[VERIFY]**: `fal_server` (should be `MIBPRCDB`), `standby_file_management`, `flashback_on`, `db_block_checking`, `log_archive_config`, `dest_2` (reverse direction), SRL count/size, Oracle version.
+**Standby side (`MIBDRCDB`) – verified 2026-11-27:**
+
+| Parameter | Value | Assessment |
+|---|---|---|
+| `fal_server` | `MIBPRCDB` | ✔ Mirror image of the primary |
+| `fal_client` | `MIBDRCDB` | ✔ (obsolete in 12c+, harmless) |
+| `protection_mode` | MAXIMUM PERFORMANCE | ✔ Matches the primary (ASYNC) |
+
+Both sides are therefore already "pre-flipped" for a switchover as far as `fal_server` is concerned.
+
+Still to check on the standby **[VERIFY]**: `flashback_on`, `db_block_checking`, `standby_file_management`, `log_archive_config`, `log_archive_dest_2` (reverse direction, §5.1), SRL/online log counts and sizes.
 
 ### 1.5 Scripts in the config file / repo
 
@@ -190,6 +202,15 @@ from gv$archive_dest_status where dest_id=2;
 -- Network round-trip as seen by Oracle for ASYNC (12c+)
 select * from v$redo_dest_resp_histogram where dest_id=2;
 ```
+
+### 2.5 Observed network data (from the standby, `tnsping MIBPRCDB 10`, 2026-11-27)
+
+* Round trip: **20–30 ms** per tnsping (9 × 30 ms, 1 × 20 ms). tnsping includes listener hand-off time, so the true IP round-trip is a little lower; confirm with `ping -c 20 10.191.210.121`.
+* The `MIBPRCDB` alias on the standby lists **6 addresses** `10.191.210.121 … .126`, port **1785**, `SERVER=DEDICATED`, service `MIBPRCDB`. It sets **no SDU or buffer sizes**.
+* BDP at 30 ms: 1 Gbit/s ≈ **3.75 MB**, 10 Gbit/s ≈ **37.5 MB**. Linux default socket buffers (often ≤ 4–6 MB, autotuned) can cap a single stream below the link speed on a 30 ms path, so the `SEND_BUF_SIZE`/`RECV_BUF_SIZE` and `sysctl` settings in §2.2–2.3 are worth applying, sized to the real link speed.
+* With several primary instances each opening their own stream, aggregate throughput is the sum of the streams (6 instances ⇒ 6 streams).
+* Repeat the check the other direction (primary → `MIBDRCDB`): the same alias must exist and work on the primary side because the same set of addresses is needed after a switchover.
+* If the 6 addresses are node VIPs (not SCAN), the first reachable address in the list is used each time (no `LOAD_BALANCE` set); that is fine for fail-over but not for spreading load.
 
 ---
 
@@ -520,6 +541,76 @@ select group#, thread#, sequence#, status, bytes/1024/1024/1024 gb from v$standb
 4. The **apply** engine (MRP for physical, LSP for logical) applies redo continuously ("real-time apply") or after the log is archived.
 5. **ARCn** processes archive logs locally and resolve **gaps** (via `fal_server`) if redo was missed (network outage, destination deferred).
 
+#### Diagram – redo transport (ASYNC, as configured: `log_archive_dest_2`)
+
+```mermaid
+flowchart LR
+  subgraph P["PRIMARY MIBPRCDB - 6-node RAC (6 threads)"]
+    direction TB
+    U["Session COMMIT"] --> LB["Log buffer"]
+    LB --> LGWR["LGWR"]
+    LGWR --> ORL[("Online redo logs\n10 GB x 10 groups per thread")]
+    LB -. "reads redo from buffer\n(from ORL if buffer wrapped)" .-> NSS["LNS / NSSn\nASYNC sender"]
+    ORL --> ARC["ARCn archivers"]
+    ARC --> FRA[("Local archive in FRA\nlog_archive_dest_1")]
+  end
+  subgraph N["Network - about 20-30 ms RTT, port 1785"]
+    TCP["Oracle Net TCP stream\nSDU / socket buffers / compression"]
+  end
+  subgraph S["STANDBY MIBDRCDB - 6-node RAC"]
+    direction TB
+    RFS["RFS\nremote file server"] --> SRL[("Standby redo logs\n11 groups per thread")]
+    SRL --> MRP["MRP + PRnn\nreal-time redo apply"]
+    MRP --> DF[("Standby datafiles")]
+    SRL --> SARC["ARCn archives SRL"]
+  end
+  NSS --> TCP --> RFS
+  ARC -. "gap fill / FAL\nfal_server" .-> RFS
+```
+
+#### Diagram – one commit under ASYNC vs SYNC
+
+```mermaid
+sequenceDiagram
+  participant App as Application
+  participant LGWR as Primary LGWR
+  participant NSS as Primary LNS/NSS
+  participant RFS as Standby RFS
+  participant MRP as Standby MRP
+  Note over App,MRP: ASYNC (your setup) - commit never waits for the standby
+  App->>LGWR: COMMIT
+  LGWR->>LGWR: write redo to online log (local)
+  LGWR-->>App: commit complete
+  LGWR-)NSS: redo available in log buffer
+  NSS-)RFS: send redo over network (background)
+  RFS->>RFS: write to standby redo log
+  RFS-)MRP: redo available
+  MRP->>MRP: apply to datafiles (real-time apply)
+  Note over App,MRP: SYNC AFFIRM (Max Availability) - commit waits for standby
+  App->>LGWR: COMMIT
+  LGWR->>NSS: redo + wait for ack
+  NSS->>RFS: send redo
+  RFS->>RFS: write to standby redo log
+  RFS-->>NSS: acknowledgement
+  NSS-->>LGWR: ack received
+  LGWR-->>App: commit complete
+```
+
+Transport lag = how far redo sent is behind redo generated (stages 1-2: primary → network → RFS). Apply lag = how far redo applied is behind redo received (stage 3: SRL → MRP → datafiles). See §3.1.
+
+#### Diagram – what the retry attributes do (REOPEN / MAX_FAILURE)
+
+```mermaid
+stateDiagram-v2
+  [*] --> Shipping
+  Shipping --> Failed: connection or send error
+  Failed --> Waiting: failure_count + 1
+  Waiting --> Shipping: after REOPEN seconds, retry OK (count reset)
+  Waiting --> Failed: after REOPEN seconds, retry fails
+  Failed --> ERROR: failure_count reaches MAX_FAILURE (0 = never)
+  ERROR --> Shipping: manual DEFER then ENABLE, gap filled by FAL / ARCH
+```
+
 ### 9.2 Standby types
 
 | Type | How it is kept in sync | Open mode | Typical use | Notes |
@@ -573,7 +664,7 @@ select protection_mode, protection_level from v$database;
 
 Go SYNC only if the measured RTT between sites is low (rule of thumb: ≤ 5–10 ms) – test the commit-latency impact in AWR (`log file sync`) first. With 6 RAC nodes and a WAN link ASYNC is usually the right choice, optionally with Far Sync if zero data loss is a requirement.
 
-**[VERIFY]** current mode: `select protection_mode, protection_level from v$database;` (expected: MAXIMUM PERFORMANCE).
+Current mode: **MAXIMUM PERFORMANCE** *(verified on the standby 2026-11-27)*.
 
 ---
 
