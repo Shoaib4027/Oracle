@@ -107,10 +107,12 @@ alter database flashback on;     -- online since 11gR2; on the standby, stop MRP
 | `fal_server` | `MIBPRCDB` | ✔ Mirror image of the primary |
 | `fal_client` | `MIBDRCDB` | ✔ (obsolete in 12c+, harmless) |
 | `protection_mode` | MAXIMUM PERFORMANCE | ✔ Matches the primary (ASYNC) |
+| `db_block_checking` | `MEDIUM` | ✔ Matches the Oracle recommendation for a standby (the primary is `FALSE`, which is acceptable to avoid CPU cost) |
+| `flashback_on` | **`NO`** | ❌ Off on **both** sites – see the action in the section above. After a failover or switchover-with-problems neither side can be reinstated by flashback. |
 
 Both sides are therefore already "pre-flipped" for a switchover as far as `fal_server` is concerned.
 
-Still to check on the standby **[VERIFY]**: `flashback_on`, `db_block_checking`, `standby_file_management`, `log_archive_config`, `log_archive_dest_2` (reverse direction, §5.1), SRL/online log counts and sizes.
+Still to check on the standby **[VERIFY]**: `standby_file_management`, `log_archive_config`, `log_archive_dest_2` (reverse direction, §5.1), SRL/online log counts and sizes.
 
 ### 1.5 Scripts in the config file / repo
 
