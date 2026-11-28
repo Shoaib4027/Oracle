@@ -299,3 +299,311 @@ SQL> select * from v$log;
 
 SQL>
 
+SQL> /
+
+-----------------------------------------Dataguard_process------------------------------------------------------------------
+-----------------------------------------------------------------------------------------------------------------------------------
+
+NAME  PID                      ROLE                     TYP ACTION       CLIENT_ROLE         THREAD#  SEQUENCE#   INSTANCE
+----- ------------------------ ------------------------ --- ------------ ---------------- ---------- ---------- ----------
+LGWR  107318                   log writer               KSB IDLE         none                      0          0          0
+TMON  107658                   redo transport monitor   KSB IDLE         none                      0          0          0
+TT00  108041                   gap manager              KSV IDLE         none                      0          0          0
+TT01  108043                   redo transport timer     KSV IDLE         none                      0          0          0
+ARC0  108037                   archive local            KSB IDLE         none                      0          0          0
+ARC1  108051                   archive redo             KSB IDLE         none                      0          0          0
+ARC2  108058                   archive redo             KSB IDLE         none                      0          0          0
+ARC3  108060                   archive redo             KSB IDLE         none                      0          0          0
+ARC4  108066                   archive redo             KSB IDLE         none                      0          0          0
+ARC5  108069                   archive redo             KSB IDLE         none                      0          0          0
+ARC6  108076                   archive redo             KSB IDLE         none                      0          0          0
+ARC7  108080                   archive redo             KSB IDLE         none                      0          0          0
+ARC8  108092                   archive redo             KSB IDLE         none                      0          0          0
+ARC9  108099                   archive redo             KSB IDLE         none                      0          0          0
+ARCa  108107                   archive redo             KSB IDLE         none                      0          0          0
+ARCb  108115                   archive redo             KSB IDLE         none                      0          0          0
+ARCc  108120                   archive redo             KSB IDLE         none                      0          0          0
+ARCd  108122                   archive redo             KSB IDLE         none                      0          0          0
+ARCe  108124                   archive redo             KSB IDLE         none                      0          0          0
+ARCf  108126                   archive redo             KSB IDLE         none                      0          0          0
+rfs   66442                    RFS archive              NET IDLE         archive gap               0          0          0
+rfs   66446                    RFS async                NET RECEIVING    async ORL multi           1     269317          0
+rfs   66508                    RFS ping                 NET IDLE         gap manager               1     269317          0
+rfs   22819                    RFS archive              NET IDLE         archive gap               0          0          0
+rfs   260458                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   241695                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   241801                   RFS archive              NET IDLE         archive gap               0          0          0
+LGWR  270018                   log writer               KSB IDLE         none                      0          0          0
+TMON  270273                   redo transport monitor   KSB IDLE         none                      0          0          0
+TT00  270869                   gap manager              KSV IDLE         none                      0          0          0
+TT01  270874                   redo transport timer     KSV IDLE         none                      0          0          0
+ARC0  270863                   archive local            KSB IDLE         none                      0          0          0
+ARC1  270880                   archive redo             KSB IDLE         none                      0          0          0
+ARC2  270882                   archive redo             KSB IDLE         none                      0          0          0
+ARC3  270886                   archive redo             KSB IDLE         none                      0          0          0
+ARC4  270888                   archive redo             KSB IDLE         none                      0          0          0
+ARC5  270894                   archive redo             KSB IDLE         none                      0          0          0
+ARC6  270900                   archive redo             KSB IDLE         none                      0          0          0
+ARC7  270909                   archive redo             KSB IDLE         none                      0          0          0
+ARC8  270917                   archive redo             KSB IDLE         none                      0          0          0
+ARC9  270945                   archive redo             KSB IDLE         none                      0          0          0
+ARCa  270951                   archive redo             KSB IDLE         none                      0          0          0
+ARCb  270956                   archive redo             KSB IDLE         none                      0          0          0
+ARCc  270958                   archive redo             KSB IDLE         none                      0          0          0
+ARCd  270962                   archive redo             KSB IDLE         none                      0          0          0
+ARCe  270978                   archive redo             KSB IDLE         none                      0          0          0
+ARCf  270982                   archive redo             KSB IDLE         none                      0          0          0
+rfs   186466                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   186539                   RFS async                NET RECEIVING    async ORL multi           3     240782          0
+rfs   186831                   RFS ping                 NET IDLE         gap manager               3     240782          0
+rfs   300764                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   197760                   RFS archive              NET IDLE         archive gap               3     240162          0
+LGWR  220003                   log writer               KSB IDLE         none                      0          0          0
+TMON  220202                   redo transport monitor   KSB IDLE         none                      0          0          0
+TT00  228428                   gap manager              KSV IDLE         none                      0          0          0
+TT01  228430                   redo transport timer     KSV IDLE         none                      0          0          0
+ARC0  228426                   archive local            KSB IDLE         none                      0          0          0
+ARC1  228434                   archive redo             KSB IDLE         none                      0          0          0
+ARC2  228436                   archive redo             KSB IDLE         none                      0          0          0
+ARC3  228440                   archive redo             KSB IDLE         none                      0          0          0
+ARC4  228442                   archive redo             KSB IDLE         none                      0          0          0
+ARC5  228446                   archive redo             KSB IDLE         none                      0          0          0
+ARC6  228448                   archive redo             KSB IDLE         none                      0          0          0
+ARC7  228451                   archive redo             KSB IDLE         none                      0          0          0
+ARC8  228455                   archive redo             KSB IDLE         none                      0          0          0
+ARC9  228462                   archive redo             KSB IDLE         none                      0          0          0
+ARCa  228471                   archive redo             KSB IDLE         none                      0          0          0
+ARCb  228480                   archive redo             KSB IDLE         none                      0          0          0
+ARCc  228483                   archive redo             KSB IDLE         none                      0          0          0
+ARCd  228485                   archive redo             KSB IDLE         none                      0          0          0
+ARCe  228487                   archive redo             KSB IDLE         none                      0          0          0
+ARCf  228489                   archive redo             KSB IDLE         none                      0          0          0
+rfs   116290                   RFS async                NET WRITING      async ORL multi           4     237904          0
+rfs   116311                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   116368                   RFS ping                 NET IDLE         gap manager               4     237904          0
+LGWR  301808                   log writer               KSB IDLE         none                      0          0          0
+TMON  302314                   redo transport monitor   KSB IDLE         none                      0          0          0
+TT00  303355                   gap manager              KSV IDLE         none                      0          0          0
+TT01  303359                   redo transport timer     KSV IDLE         none                      0          0          0
+ARC0  303353                   archive local            KSB IDLE         none                      0          0          0
+ARC1  303365                   archive redo             KSB IDLE         none                      0          0          0
+ARC2  303370                   archive redo             KSB IDLE         none                      0          0          0
+ARC3  303372                   archive redo             KSB IDLE         none                      0          0          0
+ARC4  303376                   archive redo             KSB IDLE         none                      0          0          0
+ARC5  303378                   archive redo             KSB IDLE         none                      0          0          0
+ARC6  303382                   archive redo             KSB IDLE         none                      0          0          0
+ARC7  303388                   archive redo             KSB IDLE         none                      0          0          0
+ARC8  303398                   archive redo             KSB IDLE         none                      0          0          0
+ARC9  303409                   archive redo             KSB IDLE         none                      0          0          0
+ARCa  303416                   archive redo             KSB IDLE         none                      0          0          0
+ARCb  303421                   archive redo             KSB IDLE         none                      0          0          0
+ARCc  303428                   archive redo             KSB IDLE         none                      0          0          0
+ARCd  303433                   archive redo             KSB IDLE         none                      0          0          0
+ARCe  303435                   archive redo             KSB IDLE         none                      0          0          0
+ARCf  303439                   archive redo             KSB IDLE         none                      0          0          0
+rfs   89291                    RFS archive              NET IDLE         archive gap               0          0          0
+rfs   89410                    RFS async                NET IDLE         async ORL multi           5     218413          0
+rfs   89637                    RFS ping                 NET IDLE         gap manager               5     218413          0
+LGWR  21103                    log writer               KSB IDLE         none                      0          0          0
+TMON  21431                    redo transport monitor   KSB IDLE         none                      0          0          0
+TT00  22445                    gap manager              KSV IDLE         none                      0          0          0
+TT01  22447                    redo transport timer     KSV IDLE         none                      0          0          0
+ARC0  22443                    archive local            KSB IDLE         none                      0          0          0
+ARC1  22451                    archive redo             KSB IDLE         none                      0          0          0
+ARC2  22465                    archive redo             KSB IDLE         none                      0          0          0
+ARC3  22468                    archive redo             KSB IDLE         none                      0          0          0
+ARC4  22470                    archive redo             KSB IDLE         none                      0          0          0
+ARC5  22472                    archive redo             KSB IDLE         none                      0          0          0
+ARC6  22474                    archive redo             KSB IDLE         none                      0          0          0
+ARC7  22476                    archive redo             KSB IDLE         none                      0          0          0
+ARC8  22480                    archive redo             KSB IDLE         none                      0          0          0
+ARC9  22488                    archive redo             KSB IDLE         none                      0          0          0
+ARCa  22494                    archive redo             KSB IDLE         none                      0          0          0
+ARCb  22500                    archive redo             KSB IDLE         none                      0          0          0
+ARCc  22502                    archive redo             KSB IDLE         none                      0          0          0
+ARCd  22504                    archive redo             KSB IDLE         none                      0          0          0
+ARCe  22506                    archive redo             KSB IDLE         none                      0          0          0
+ARCf  22508                    archive redo             KSB IDLE         none                      0          0          0
+rfs   306316                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   306506                   RFS async                NET WRITING      async ORL multi           6     209396          0
+rfs   306760                   RFS ping                 NET IDLE         gap manager               6     209396          0
+rfs   323980                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   300362                   RFS archive              NET IDLE         archive gap               6     208884          0
+rfs   85259                    RFS archive              NET IDLE         archive gap               0          0          0
+LGWR  137492                   log writer               KSB IDLE         none                      0          0          0
+TMON  137912                   redo transport monitor   KSB IDLE         none                      0          0          0
+TT00  138625                   gap manager              KSV IDLE         none                      0          0          0
+TT01  138628                   redo transport timer     KSV IDLE         none                      0          0          0
+ARC0  138615                   archive local            KSB IDLE         none                      0          0          0
+ARC1  138635                   archive redo             KSB IDLE         none                      0          0          0
+ARC2  138641                   archive redo             KSB IDLE         none                      0          0          0
+ARC3  138645                   archive redo             KSB IDLE         none                      0          0          0
+ARC4  138666                   archive redo             KSB IDLE         none                      0          0          0
+ARC5  138672                   archive redo             KSB IDLE         none                      0          0          0
+ARC6  138675                   archive redo             KSB IDLE         none                      0          0          0
+ARC7  138689                   archive redo             KSB IDLE         none                      0          0          0
+ARC8  138698                   archive redo             KSB IDLE         none                      0          0          0
+ARC9  138707                   archive redo             KSB IDLE         none                      0          0          0
+ARCa  138714                   archive redo             KSB IDLE         none                      0          0          0
+ARCb  138716                   archive redo             KSB IDLE         none                      0          0          0
+ARCc  138719                   archive redo             KSB IDLE         none                      0          0          0
+ARCd  138725                   archive redo             KSB IDLE         none                      0          0          0
+ARCe  138729                   archive redo             KSB IDLE         none                      0          0          0
+ARCf  138732                   archive redo             KSB IDLE         none                      0          0          0
+MRP0  173532                   managed recovery         KSB IDLE         none                      0          0          0
+PR00  174031                   recovery logmerger       KSV APPLYING_LOG none                      6     209396          0
+PR01  174196                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR02  174198                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR03  174207                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR04  174210                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR05  174227                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR06  174229                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR07  174231                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR08  174233                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR09  174235                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0A  174237                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0B  174239                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0C  174241                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0D  174243                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0E  174248                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0F  174250                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0G  174252                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0H  174254                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0I  174258                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0J  174262                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0K  174264                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0L  174266                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0M  174268                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0N  174270                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0O  174272                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0P  174279                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0Q  174281                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0R  174283                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0S  174285                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0T  174287                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0U  174289                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0V  174291                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0W  174293                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0X  174295                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0Y  174297                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR0Z  174302                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR10  174308                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR11  174313                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR12  174315                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR13  174317                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR14  174319                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR15  174321                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR16  174323                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR17  174325                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR18  174327                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR19  174329                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1A  174331                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1B  174333                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1C  174335                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1D  174337                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1E  174339                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1F  174347                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1G  174349                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1H  174351                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1I  174353                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1J  174355                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1K  174359                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1L  174362                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1M  174364                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1N  174366                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1O  174368                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1P  174370                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1Q  174372                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1R  174374                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1S  174376                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1T  174378                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1U  174383                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1V  174385                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1W  174387                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1X  174389                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1Y  174394                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR1Z  174396                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR20  174398                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR21  174401                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR22  174403                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR23  174406                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR24  174408                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR25  174410                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR26  174412                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR27  174415                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR28  174419                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR29  174423                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2A  174427                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2B  174429                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2C  174431                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2D  174433                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2E  174435                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2F  174437                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2G  174439                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2H  174442                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2I  174444                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2J  174446                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2K  174448                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2L  174450                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2M  174452                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2N  174454                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2O  174456                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2P  174458                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2Q  174460                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2R  174462                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2S  174464                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2T  174466                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2U  174468                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2V  174470                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2W  174474                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2X  174476                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2Y  174478                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR2Z  174480                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR30  174482                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR31  174484                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR32  174487                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR33  174489                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR34  174492                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR35  174495                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR36  174497                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR37  174499                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR38  174501                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR39  174506                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3A  174508                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3B  174510                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3C  174512                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3D  174514                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3E  174516                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3F  174518                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3G  174520                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3H  174522                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3I  174524                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+PR3J  174526                   recovery apply slave     KSV APPLYING_LOG none                      0          0          0
+rfs   134102                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   134245                   RFS async                NET RECEIVING    async ORL multi           2     271018          0
+rfs   134631                   RFS ping                 NET IDLE         gap manager               2     271018          0
+rfs   136255                   RFS archive              NET IDLE         archive gap               0          0          0
+rfs   49975                    RFS archive              NET IDLE         archive gap               0          0          0
+
+278 rows selected.
+------------------------------------------------------------------------------------------------------------------------------------
+--------------------------Backhaul Listner for node1---------------------------------------------------------------------------------
+----------------------------same listener configuration for all nodes -----------------------------------------------------------------------------------------
+LISTENER_MIIB-BKL =
+  (DESCRIPTION_LIST =
+    (DESCRIPTION =
+      (SEND_BUF_SIZE=78643200)
+      (RECV_BUF_SIZE=78643200)
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 10.177.3.221)(PORT = 1785))
+    )
+  )
+
+SID_LIST_LISTENER_MIIB-BKL =
+  (SID_LIST =
+    (SID_DESC =
+      (GLOBAL_DBNAME = MIBDRCDB)
+      (ORACLE_HOME = /u01/app/oracle/product/19.0.0.0/dbhome_1)
+      (SID_NAME = MIBDRCDB1)
+    )
+  )
+
