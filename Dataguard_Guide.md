@@ -2,7 +2,7 @@
 
 Source of truth for the "as-is" section: `dataguard_configuration.txt` in this repo.
 Items marked **[VERIFY]** are not in that file and must be confirmed on the actual systems before the runbook is used.
-Values marked *(verified 2026-11-27)* were read from the primary (`MIBPRCDB`) via SQL*Plus. The standby (`MIBDRCDB`) has **not** been checked yet.
+Values marked *(verified 2026-11-27)* were read from the primary (`MIBPRCDB`) via SQL*Plus. Standby (`MIBDRCDB`) values were verified the same day; DG process list and backhaul listener added 2026-11-28.
 
 **Contents:** 1 Current configuration · 2 Network parameters · 3 Lag troubleshooting · 4 Switchover vs failover · 5 Switchover runbook · 6 Failover runbook · 7 Pitfalls · 8 Quick queries · **9 Types of Data Guard** · **10 Redo transport attributes (REOPEN, MAX_FAILURE, …) and tuning**
 
@@ -128,6 +128,54 @@ Still to check on the standby **[VERIFY]**: `log_archive_dest_3/4/5`, SRL and on
 | `missing_log.sql`, `role.sql` (repo) | Gap check / role check – see the files. |
 
 Reading the `@er 2` output in the file: all 6 instances show `STATUS=VALID`, empty ERROR, and `LOG_SEQUENCE` equal to each thread's current online log (269123, 270827, 240591, 237713, 218223, 209205 = the CURRENT groups in v$log). That means redo was being shipped to the DR in real time, with no destination errors at the time of capture. The `@er 4` output shows `LOG_SEQUENCE 0` for GG – GoldenGate is receiving files via the ARCH template rather than a sequence counter, which is normal for that feed.
+
+### 1.6 Data Guard processes on the standby (`gv$dataguard_process`, captured 2026-11-28)
+
+278 rows over the 6 standby instances. Per instance: `LGWR`, `TMON` (redo transport monitor), `TT00` (gap manager), `TT01` (transport timer), `ARC0`–`ARCf` (16 archivers = `log_archive_max_processes`), and RFS processes. Only **instance 6** also runs `MRP0` + the parallel recovery set `PR00`–`PR1C` (1 log merger + 48 apply slaves).
+
+| Observation | Reading |
+|---|---|
+| One `RFS async` (`async ORL multi`) per primary thread, spread over **all 6 standby instances** (threads 1, 3, 4, 5, 6, 2 on different nodes) | ✔ Real-time transport into standby redo logs; every primary thread has its own stream and they are not funnelled through one standby node. States are `RECEIVING`/`WRITING`/`IDLE` = actively receiving or between redo bursts. |
+| `RFS async` sequence per thread (269317, 271018, 240782, 237904, 218413, 209396) | Slightly ahead of the `@er 2` values from the day before (269123, 270827, 240591, 237713, 218223, 209205) – same threads, moving forward consistently. |
+| `MRP0` on instance 6, `PR00` merging **thread 6 seq 209396** = the same sequence `RFS async` is writing for thread 6 | ✔ Apply is at the tip of the redo stream (real-time apply, no apply lag visible at capture time). Check `v$dataguard_stats` to confirm over time. |
+| `RFS archive` / `archive gap` rows, `IDLE`, some with a sequence (e.g. thread 3 seq 240162, thread 6 seq 208884) | Idle ARCH-type connections left from earlier gap/archive shipping. Not an active gap. A gap would show a non-idle row or `gv$archive_gap` rows. |
+| `RFS ping` / `TT00 gap manager` present | ✔ Gap detection works in both directions. |
+| Apply on a single instance (6) | Normal for RAC standby (only one instance applies). It means instance 6 carries all apply CPU/IO – plan which node applies after a switchover, and keep `MRP` restartable on another node if instance 6 goes down. |
+
+Queries to repeat this check:
+
+```sql
+select inst_id, name, role, action, client_role, thread#, sequence#
+from gv$dataguard_process order by inst_id, name;
+
+select name, value, time_computed from v$dataguard_stats
+where name in ('transport lag','apply lag','apply finish time');
+```
+
+### 1.7 Backhaul listener for the standby (from `dataguard_configuration.txt`, node 1)
+
+```
+LISTENER_MIIB-BKL =
+  (DESCRIPTION_LIST = (DESCRIPTION =
+      (SEND_BUF_SIZE=78643200) (RECV_BUF_SIZE=78643200)
+      (ADDRESS = (PROTOCOL = TCP)(HOST = 10.177.3.221)(PORT = 1785))))
+SID_LIST_LISTENER_MIIB-BKL =
+  (SID_LIST = (SID_DESC = (GLOBAL_DBNAME = MIBDRCDB)
+      (ORACLE_HOME = /u01/app/oracle/product/19.0.0.0/dbhome_1)
+      (SID_NAME = MIBDRCDB1)))
+```
+
+Same layout on all nodes (own backhaul IP and `SID_NAME` per node). Review:
+
+| Item | Assessment |
+|---|---|
+| Dedicated listener on a separate backhaul IP, port **1785** | ✔ Keeps redo traffic off the public/SCAN listeners. Port matches the `MIBPRCDB` alias seen in §2.5. |
+| `SEND_BUF_SIZE`/`RECV_BUF_SIZE` = 78,643,200 (75 MB) | ✔ Addresses the BDP issue in §2.1/2.5 (far above 37.5 MB for 10 Gbit @ 30 ms). ⚠ The OS will silently cap it at `net.core.rmem_max`/`wmem_max` – check they are ≥ this value (§2.3), or the setting has no effect. |
+| **No `SDU`** on the listener | Add `(SDU=65535)` to the DESCRIPTION and in the primary-side TNS alias used by `dest_2` so both ends agree (§2.2). |
+| **Static registration only** (`GLOBAL_DBNAME=MIBDRCDB`, fixed `SID_NAME`) | ✔ Lets you reach the standby while it is in NOMOUNT/MOUNT (restart, RMAN duplicate, rebuild). ⚠ The service is advertised as up even if the instance is down, so a failed instance shows as `ORA-12528/12505`-style errors rather than being removed from the list. |
+| Not role-aware | After a switchover the same listener must serve `MIBPRCDB` too (or `MIBPRCDB`'s own backhaul listener must exist). **[VERIFY]** the primary side has the mirror listener (`GLOBAL_DBNAME=MIBPRCDB`, `SID_NAME=MIBPRCDB1..6`) and that `dest_2` on the standby (to be created, §5.1) points to it. |
+| Subnet | Backhaul is `10.177.3.x`, while the standby's `MIBPRCDB` alias uses `10.191.210.121–126` (§2.5). **[VERIFY]** which network each direction really uses – ping/tnsping the backhaul IPs and confirm the primary's `MIBDRCDB` alias (`dest_2` service) points to `10.177.3.x`. |
+| `ORACLE_HOME` | Listener runs from a DB home, not the Grid home – OK, but confirm it is the same listener binary that `srvctl`/CRS manages (otherwise CRS will not restart it after a node reboot). **[VERIFY]** `lsnrctl status LISTENER_MIIB-BKL` and `crsctl stat res -t`. |
 
 ---
 
